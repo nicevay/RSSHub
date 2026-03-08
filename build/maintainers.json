@@ -5596,6 +5596,9 @@
     "yana9i",
     "Tsuyumi25"
   ],
+  "/meritalk/articles": [
+    "superguyDiluc"
+  ],
   "/meta/ai/blog": [
     "TonyRL"
   ],
@@ -6527,7 +6530,8 @@
     "nczitzk"
   ],
   "/openai/research": [
-    "yuguorui"
+    "yuguorui",
+    "chesha1"
   ],
   "/openalex/:journals/:type?/:ids?": [
     "emdoe"
