@@ -274,7 +274,7 @@
   "/78dm/:category{.+}?": [
     "nczitzk"
   ],
-  "/7mmtv/:language?/:category?/:type?": [
+  "/7mmtv/:language?/:category?/:type?/:extra?": [
     "nczitzk"
   ],
   "/8kcos/cat/:cat?": [
