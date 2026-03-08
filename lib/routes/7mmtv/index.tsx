@@ -52,7 +52,7 @@ async function handler(ctx) {
     const category = ctx.req.param('category') ?? 'censored_list';
     const type = ctx.req.param('type') ?? 'all';
     const extra = ctx.req.param('extra') ?? '';
-    
+
     const rootUrl = 'https://7mmtv.sx';
     const currentUrl = `${rootUrl}/${language}/${category}/${type}/${extra}/1.html`;
 
