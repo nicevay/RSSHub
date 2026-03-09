@@ -8,7 +8,7 @@ import got from '@/utils/got';
 import { parseDate } from '@/utils/parse-date';
 
 export const route: Route = {
-    path: '/:language?/:category?/:type?/:extra?',
+    path: '/:language?/:category?/:type?',
     categories: ['multimedia'],
     example: '/7mmtv/zh/censored_list/all',
     parameters: { language: 'Language, see below, `en` as English by default', category: 'Category, see below, `censored_list` as Censored by default', type: 'Server, see below, all server by default' },
@@ -51,10 +51,9 @@ async function handler(ctx) {
     const language = ctx.req.param('language') ?? 'en';
     const category = ctx.req.param('category') ?? 'censored_list';
     const type = ctx.req.param('type') ?? 'all';
-    const extra = ctx.req.param('extra') ?? '';
 
     const rootUrl = 'https://7mmtv.sx';
-    const currentUrl = `${rootUrl}/${language}/${category}/${type}/${extra}/1.html`;
+    const currentUrl = `${rootUrl}/${language}/${category}/${type}/1.html`;
 
     const response = await got({
         method: 'get',
