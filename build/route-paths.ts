@@ -87,7 +87,7 @@ export type RoutePath =
   | `/6v123/latestMovies`
   | `/6v123/latestTVSeries`
   | `/78dm/:category{.+}?`
-  | `/7mmtv/:language?/:category?/:type?/:extra?`
+  | `/7mmtv/:language?/:category?/:type?`
   | `/81/81rc/:category{.+}?`
   | `/8264/list/:id?`
   | `/8kcos/`
