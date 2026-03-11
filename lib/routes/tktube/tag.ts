@@ -1,110 +1,246 @@
 const got = require('@/utils/got');
-const { load } = require('cheerio');
+const cheerio = require('cheerio');
 const { parseDate } = require('@/utils/parse-date');
 
-// ---------- 复用您提供的 AV 类逻辑 ----------
+// ---------- 复用 AV 类逻辑 ----------
+const codePattern = /^(?<label>[a-zA-Z]+)[-_]?(?<number>\d+)(?<suffix>[a-z]+)?$/;
+const dmmMonoPics = 'https://p.dmm.co.jp/mono/movie/adult';
+const dmmDigiPics = 'https://p.dmm.co.jp/digital/video';
 const dmmVideos = 'https://cc3001.dmm.co.jp/litevideo/freepv';
+const dmmVrVideos = 'https://cc3001.dmm.co.jp/vrsample';
+const dmmMonoUrl = 'https://www.dmm.co.jp/mono/dvd/-/detail/=/cid=';
+const dmmDigiUrl = 'https://www.dmm.co.jp/digital/videoa/-/detail/=/cid=';
+
+const digiLabels = [
+    'aiav', 'beaf', 'docd', 'docp', 'fax', 'fabs', 'hmrk', 'htms', 'hoks',
+    'kamef', 'kmai', 'maan', 'mdon', 'mfcd', 'mfct', 'mgtd', 'neob', 'open',
+    'sdhs', 'senn', 'seth', 'shyn', 'silks', 'silku', 'sprd', 'sqis', 'stzy',
+    'vov', 'xox', 'yyds',
+];
+
+const vrLabels = [
+    'aqube', 'aquco', 'aquga', 'aquma', 'exmo', 'fsvss', 'gopj', 'komz',
+    'slr', 'urvrsp', 'kmhrs',
+];
+
 const labels = {
+    1: ['aiav', 'boko', 'dandy', 'dldss', 'emois', 'fadss', 'fcdss', 'fsdss', 'fsvss', 'ftav', 'iene', 'kire', 'kkbt', 'kmhr', 'kmhrs', 'kuse', 'mgold', 'mist', 'mogi', 'moon', 'msfh', 'mtall', 'namh', 'nhdt', 'nhdta', 'nhdtb', 'noskn', 'open', 'piyo', 'rct', 'rctd', 'sace', 'sdab', 'sdam', 'sdde', 'sdhs', 'sdjs', 'sdmf', 'sdmm', 'sdms', 'sdmt', 'sdmu', 'sdmua', 'sdnm', 'sdth', 'senn', 'setm', 'seth', 'sgki', 'shyn', 'silk', 'silks', 'silku', 'sply', 'star', 'stars', 'start', 'stzy', 'sun', 'suwk', 'svbgr', 'svcao', 'svdvd', 'svmgm', 'svnnp', 'svsha', 'svvrt', 'sw', 'wo'],
+    2: ['cen', 'ckw', 'cwm', 'dfdm', 'dfe', 'dje', 'ecb', 'ekai', 'emsk', 'hkw', 'wdi', 'wsp', 'wss', 'wzen'],
+    13: ['dsvr'],
+    18: ['sprd'],
+    24: ['bld', 'cvd', 'dkd', 'frd', 'isrd', 'nad', 'nhd', 'ped', 'tyd', 'ufd', 'vdd'],
+    41: ['aibv', 'aidv', 'hodv', 'howy'],
+    53: ['dv'],
+    55: ['csct', 'hitma', 'hsrm', 'id', 'qqq', 'qvrt', 't', 'tsms'],
+    59: ['hez'],
+    118: ['aas', 'abf', 'abp', 'abw', 'aka', 'bgn', 'chn', 'dic', 'dmr', 'dkn', 'dlv', 'fbu', 'fig', 'fit', 'fiv', 'gni', 'gdl', 'ggg', 'jbs', 'onez', 'ppt', 'ppx', 'pxh', 'sga', 'shf', 'sng', 'thu', 'yrk'],
+    5433: ['btha'],
+    5642: ['neob'],
+    h_019: ['aczd'],
+    h_066: ['fax'],
+    h_068: ['mxbd', 'mxgs', 'mxsps'],
+    h_086: ['hone', 'hthd', 'iora', 'iro', 'jrzd', 'jrze', 'jura', 'nuka'],
+    h_113: ['cb', 'ps', 'se', 'sy', 'zm'],
+    h_139: ['dhld', 'doks', 'dotm'],
+    h_172: ['gghx', 'hmgl', 'hmnf'],
     h_237: ['ambi', 'clot', 'find', 'hdka', 'nacr', 'nacx', 'zmar'],
-    // ... 其他标签建议保留在类外部作为常量 ...
+    h_346: ['rebd', 'rebdb'],
+    h_458: ['hsm'],
+    h_491: ['fneo', 'fone', 'tenn', 'tkou'],
+    h_720: ['zex'],
+    h_796: ['san'],
+    h_910: ['vrtm'],
+    h_1100: ['hzgd'],
+    h_1127: ['gopj'],
+    h_1133: ['gone', 'jstk', 'nine', 'tdan'],
+    h_1240: ['milk'],
+    h_1324: ['skmj'],
+    h_1350: ['kamef', 'kamx', 'tmgv', 'vov', 'vovx'],
+    h_1472: ['xox'],
+    h_1495: ['bank'],
+    h_1539: ['slr'],
+    h_1615: ['beaf'],
+    h_1711: ['dal', 'docd', 'docp', 'hmrk', 'maan', 'mfcd', 'mfct', 'mgtd'],
+    h_1712: ['asi', 'dtt', 'fft', 'kbi', 'kbl', 'kbr', 'tuk'],
+    h_1757: ['olm'],
+    h_1800: ['yyds'],
+    n_707: ['aims', 'fuka', 'jfic', 'jtdk', 'lbdd', 'mbdd', 'ohp'],
+    n_709: ['maraa', 'mbraa', 'mbrau', 'mbraz', 'mbrba', 'mbrbi', 'mbrbm', 'mbrbn', 'mmraa'],
+    n_1428: ['ap', 'ld', 'ss'],
 };
 
 class AV {
     constructor(s) {
-        const match = s.match(/^(?<label>[a-zA-Z]+)[-_]?(?<number>\d+)(?<suffix>[a-z]+)?$/);
+        const match = s.match(codePattern);
         if (match) {
             this.label = match.groups.label.toLowerCase();
             this.number = match.groups.number;
             this.suffix = match.groups.suffix || '';
             for (const [key, list] of Object.entries(labels)) {
                 if (list.includes(this.label)) {
-                    this.id = '' + key + this.label + this.number + this.suffix;
-                    this.vid = '' + key + this.label + this.number.padStart(5, '0') + this.suffix;
+                    this.id = `${key}${this.label}${this.number}${this.suffix}`;
+                    this.vid = `${key}${this.label}${this.number.padStart(5, '0')}${this.suffix}`;
                     return;
                 }
             }
-            this.id = this.label + this.number;
-            this.vid = this.label + this.number.padStart(5, '0');
+            this.id = `${this.label}${this.number}${this.suffix}`;
+            this.vid = `${this.label}${this.number.padStart(5, '0')}${this.suffix}`;
         }
     }
+
+    get isVr() {
+        return this.label.endsWith('vr') || vrLabels.includes(this.label);
+    }
+
+    get url() {
+        return this.isVr || digiLabels.includes(this.label)
+            ? `${dmmDigiUrl}${this.vid}/`
+            : `${dmmMonoUrl}${this.id}/`;
+    }
+
+    get cover() {
+        return this.isVr || digiLabels.includes(this.label)
+            ? `${dmmDigiPics}/${this.vid}/${this.vid}pl.jpg`
+            : `${dmmMonoPics}/${this.id}/${this.id}pl.jpg`;
+    }
+
     get videos() {
-        return ['hhb', 'mhb', '_dmb_w', '_dm_s'].reduce((arr, suffix) => {
-            arr.push(`${dmmVideos}/${this.vid?.[0]}/${this.vid?.substring(0, 3)}/${this.vid}/${this.vid}${suffix}.mp4`);
-            arr.push(`${dmmVideos}/${this.id?.[0]}/${this.id?.substring(0, 3)}/${this.id}/${this.id}${suffix}.mp4`);
+        if (this.isVr) {
+            return [
+                `${dmmVrVideos}/${this.vid[0]}/${this.vid.substring(0, 3)}/${this.vid}/${this.vid}vrlite.mp4`,
+                `${dmmVrVideos}/${this.id[0]}/${this.id.substring(0, 3)}/${this.id}/${this.id}vrlite.mp4`,
+            ];
+        }
+        return ['hhb', 'mhb', '_dmb_w', '_dm_s'].reduce((arr, sfx) => {
+            arr.push(`${dmmVideos}/${this.vid[0]}/${this.vid.substring(0, 3)}/${this.vid}/${this.vid}${sfx}.mp4`);
+            arr.push(`${dmmVideos}/${this.id[0]}/${this.id.substring(0, 3)}/${this.id}/${this.id}${sfx}.mp4`);
             return arr;
         }, []);
     }
 }
+// ---------- AV 类定义结束 ----------
 
-// ---------- 按照“新路由制作方法”导出 ----------
-module.exports = {
-    route: {
-        path: '/tag/:tagid',
-        categories: ['multimedia'],
-        example: '/tktube/tag/d16507037fea89b20ca12ea5159474e5',
-        parameters: { tagid: '标签 ID' },
-        name: '标签视频订阅',
-        maintainers: ['YourName'],
-        handler: async (ctx) => {
-            const tagid = ctx.req.param('tagid');
-            const url = `https://tktube.com/zh/tags/${tagid}/`;
+/**
+ * 尝试探测候选视频 URL 是否可访问（HEAD 请求）。
+ * got 封装不直接暴露 .head()，通过 method 选项实现。
+ * 全部失败时静默降级，返回空字符串。
+ *
+ * @param {string[]} candidates
+ * @returns {Promise<string>}
+ */
+async function detectVideoUrl(candidates) {
+    for (const url of candidates) {
+        try {
+            const res = await got(url, {
+                method: 'HEAD',
+                headers: { Referer: 'https://www.dmm.co.jp/' },
+                timeout: { request: 1500 },
+                throwHttpErrors: false, // 非 2xx 不抛异常，手动判断状态码
+            });
+            if (res.statusCode === 200) {
+                return url;
+            }
+        } catch {
+            // 超时或网络错误，继续尝试下一个候选
+        }
+    }
+    return '';
+}
 
-            const response = await got(url);
-            const $ = load(response.data);
-            const list = $('div.item').get();
+module.exports = async (ctx) => {
+    const tagid = ctx.req.param('tagid');
+    const url = `https://tktube.com/zh/tags/${tagid}/`;
 
-            const items = await Promise.全部(
-                list.map(async (el) => {
-                    const $el = $(el);
-                    const href = $el.find('a').first().attr('href');
-                    const title = $el.find('strong.title').text().trim();
-                    const videoId = $el.find('span.ico-fav-0').attr('data-fav-video-id');
-                    
-                    if (!href || !videoId) return null;
+    const response = await got(url);
+    const $ = cheerio.load(response.data);
 
-                    const dateText = $el.find('div.added em').text().trim();
-                    const imgSrc = $el.find('img.thumb').attr('data-webp') || $el.find('img.thumb').attr('src');
+    const list = $('div.item').get();
 
-                    // 提取番号并探测有效 DMM 链接
-                    const lastPart = href.match(/\/([^/]+)\/?$/)[1];
-                    const avObj = new AV(lastPart);
-                    let dmmVideoUrl = '';
+    const items = await Promise.全部(
+        list.map(async (el) => {
+            const $el = $(el);
+            const $link = $el.find('a').first();
+            const href = $link.attr('href');
+            if (!href) {
+                return null;
+            }
 
-                    if (avObj && avObj.videos) {
-                        const candidates = [avObj.videos[0], avObj.videos[1]]; // 0是补零版，1是原始版
-                        for (const cand of candidates) {
-                            try {
-                                const check = await got.head(cand, {
-                                    headers: { Referer: 'https://www.dmm.co.jp/' },
-                                    timeout: 1000,
-                                });
-                                if (check.statusCode === 200) {
-                                    dmmVideoUrl = cand;
-                                    break;
-                                }
-                            } catch (e) { /* ignore */ }
-                        }
-                        if (!dmmVideoUrl) dmmVideoUrl = avObj.videos[0];
+            const title = $el.find('strong.title').text().trim();
+            const videoId = $el.find('span.ico-fav-0').attr('data-fav-video-id');
+            if (!title || !videoId) {
+                return null;
+            }
+
+            const $img = $el.find('img.thumb');
+            const imgSrc = $img.attr('data-webp') || $img.attr('src') || '';
+            const dateText = $el.find('div.added em').text().trim();
+            const pubDate = dateText ? parseDate(dateText) : null;
+
+            // 1. 从 href 末段提取番号
+            const lastPartMatch = href.match(/\/([^/]+)\/?$/);
+            if (!lastPartMatch) {
+                return null;
+            }
+            const lastPart = lastPartMatch[1];
+
+            let code = '';
+            const avTest = new AV(lastPart);
+            if (avTest && avTest.label && avTest.number) {
+                code = `${avTest.label}-${avTest.number}`;
+            } else {
+                const fc2Match = lastPart.match(/^(fc2-ppv-\d+)/i);
+                if (fc2Match) {
+                    code = fc2Match[1];
+                } else {
+                    const generalMatch = lastPart.match(/([a-z]+[-_]?\d+)/i);
+                    if (generalMatch) {
+                        code = generalMatch[1];
                     }
+                }
+            }
 
-                    return {
-                        title,
-                        link: href,
-                        description: `
-                            <img src="${imgSrc}" width="100%"/><br>
-                            <iframe width="544" height="306" src="${dmmVideoUrl}" frameborder="0" allowfullscreen></iframe><br>
-                            <iframe width="544" height="306" src="https://tktube.com/zh/embed/${videoId}" frameborder="0" allowfullscreen></iframe>
-                        `,
-                        pubDate: parseDate(dateText),
-                    };
-                })
-            );
+            if (!code) {
+                return null;
+            }
+
+            // 2. 探测有效 DMM 预览视频链接
+            const avObj = new AV(code);
+            let dmmVideoUrl = '';
+
+            if (avObj && avObj.videos && avObj.videos.length > 0) {
+                // 仅对补零版与原始版（前两个候选）做快速探测
+                const candidates = [avObj.videos[0], avObj.videos[1]].filter(Boolean);
+                dmmVideoUrl = await detectVideoUrl(candidates);
+                // 全部探测失败时保底使用第一个候选（可能 404，但保留占位）
+                if (!dmmVideoUrl) {
+                    dmmVideoUrl = avObj.videos[0];
+                }
+            }
+
+            const embedUrl = `https://tktube.com/zh/embed/${videoId}`;
+
+            const description = [
+                imgSrc ? `<img src="${imgSrc}" width="100%"/><br>` : '',
+                dmmVideoUrl
+                    ? `<iframe width="544" height="306" src="${dmmVideoUrl}" frameborder="0" allowfullscreen></iframe><br>`
+                    : '',
+                `<iframe width="544" height="306" src="${embedUrl}" frameborder="0" allowfullscreen></iframe><br>`,
+            ].join('\n');
 
             return {
-                title: `TKTube - ${$('title').text()}`,
-                link: url,
-                item: items.filter((i) => i !== null),
+                title,
+                link: href,
+                description,
+                guid: href,
+                pubDate,
             };
-        },
-    },
+        })
+    );
+
+    ctx.state.data = {
+        title: `TKTube - ${$('title').text() || '标签页'}`,
+        link: url,
+        description: $('meta[name="description"]').attr('content') || '',
+        item: items.filter(Boolean),
+    };
 };
