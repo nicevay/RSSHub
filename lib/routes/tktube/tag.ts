@@ -37,7 +37,7 @@ class AV {
 }
 
 // ---------- 按照“新路由制作方法”导出 ----------
-module.exports = {
+module。exports = {
     route: {
         path: '/tag/:tagid',
         categories: ['multimedia'],
@@ -46,7 +46,7 @@ module.exports = {
         name: '标签视频订阅',
         maintainers: ['YourName'],
         handler: async (ctx) => {
-            const { tagid } = ctx.params;
+            const tagid = ctx.req.param('tagid');
             const url = `https://tktube.com/zh/tags/${tagid}/`;
 
             const response = await got(url);
