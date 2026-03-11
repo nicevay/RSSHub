@@ -173,7 +173,18 @@ async function handler(ctx) {
     const { tagid } = ctx.req.param();
     const url = `https://tktube.com/zh/tags/${tagid}/`;
 
-    const response = await got({ method: 'get', url });
+
+    const response = await got({
+        method: 'get',
+        url,
+        headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+            'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+            'Accept-Encoding': 'gzip, deflate, br',
+            Referer: 'https://tktube.com/',
+        },
+    });
     const $ = load(response.data);
 
     const list = $('div.item').toArray();
