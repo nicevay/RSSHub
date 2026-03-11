@@ -1,8 +1,9 @@
-const got = require('@/utils/got');
-const cheerio = require('cheerio');
-const { parseDate } = require('@/utils/parse-date');
+import { load } from 'cheerio';
+import type { Route } from '@/types';
+import got from '@/utils/got';
+import { parseDate } from '@/utils/parse-date';
 
-// ---------- 复用 AV 类逻辑 ----------
+// ---------- AV 工具类 ----------
 const codePattern = /^(?<label>[a-zA-Z]+)[-_]?(?<number>\d+)(?<suffix>[a-z]+)?$/;
 const dmmMonoPics = 'https://p.dmm.co.jp/mono/movie/adult';
 const dmmDigiPics = 'https://p.dmm.co.jp/digital/video';
@@ -23,7 +24,7 @@ const vrLabels = [
     'slr', 'urvrsp', 'kmhrs',
 ];
 
-const labels = {
+const labels: Record<string, string[]> = {
     1: ['aiav', 'boko', 'dandy', 'dldss', 'emois', 'fadss', 'fcdss', 'fsdss', 'fsvss', 'ftav', 'iene', 'kire', 'kkbt', 'kmhr', 'kmhrs', 'kuse', 'mgold', 'mist', 'mogi', 'moon', 'msfh', 'mtall', 'namh', 'nhdt', 'nhdta', 'nhdtb', 'noskn', 'open', 'piyo', 'rct', 'rctd', 'sace', 'sdab', 'sdam', 'sdde', 'sdhs', 'sdjs', 'sdmf', 'sdmm', 'sdms', 'sdmt', 'sdmu', 'sdmua', 'sdnm', 'sdth', 'senn', 'setm', 'seth', 'sgki', 'shyn', 'silk', 'silks', 'silku', 'sply', 'star', 'stars', 'start', 'stzy', 'sun', 'suwk', 'svbgr', 'svcao', 'svdvd', 'svmgm', 'svnnp', 'svsha', 'svvrt', 'sw', 'wo'],
     2: ['cen', 'ckw', 'cwm', 'dfdm', 'dfe', 'dje', 'ecb', 'ekai', 'emsk', 'hkw', 'wdi', 'wsp', 'wss', 'wzen'],
     13: ['dsvr'],
@@ -70,9 +71,15 @@ const labels = {
 };
 
 class AV {
-    constructor(s) {
+    label: string = '';
+    number: string = '';
+    suffix: string = '';
+    id: string = '';
+    vid: string = '';
+
+    constructor(s: string) {
         const match = s.match(codePattern);
-        if (match) {
+        if (match?.groups) {
             this.label = match.groups.label.toLowerCase();
             this.number = match.groups.number;
             this.suffix = match.groups.suffix || '';
@@ -88,54 +95,50 @@ class AV {
         }
     }
 
-    get isVr() {
+    get isVr(): boolean {
         return this.label.endsWith('vr') || vrLabels.includes(this.label);
     }
 
-    get url() {
+    get url(): string {
         return this.isVr || digiLabels.includes(this.label)
             ? `${dmmDigiUrl}${this.vid}/`
             : `${dmmMonoUrl}${this.id}/`;
     }
 
-    get cover() {
+    get cover(): string {
         return this.isVr || digiLabels.includes(this.label)
             ? `${dmmDigiPics}/${this.vid}/${this.vid}pl.jpg`
             : `${dmmMonoPics}/${this.id}/${this.id}pl.jpg`;
     }
 
-    get videos() {
+    get videos(): string[] {
         if (this.isVr) {
             return [
                 `${dmmVrVideos}/${this.vid[0]}/${this.vid.substring(0, 3)}/${this.vid}/${this.vid}vrlite.mp4`,
                 `${dmmVrVideos}/${this.id[0]}/${this.id.substring(0, 3)}/${this.id}/${this.id}vrlite.mp4`,
             ];
         }
-        return ['hhb', 'mhb', '_dmb_w', '_dm_s'].reduce((arr, sfx) => {
+        return ['hhb', 'mhb', '_dmb_w', '_dm_s'].reduce((arr: string[], sfx) => {
             arr.push(`${dmmVideos}/${this.vid[0]}/${this.vid.substring(0, 3)}/${this.vid}/${this.vid}${sfx}.mp4`);
             arr.push(`${dmmVideos}/${this.id[0]}/${this.id.substring(0, 3)}/${this.id}/${this.id}${sfx}.mp4`);
             return arr;
-        }, []);
+        }， []);
     }
 }
 // ---------- AV 类定义结束 ----------
 
 /**
- * 尝试探测候选视频 URL 是否可访问（HEAD 请求）。
- * got 封装不直接暴露 .head()，通过 method 选项实现。
- * 全部失败时静默降级，返回空字符串。
- *
- * @param {string[]} candidates
- * @returns {Promise<string>}
+ * 探测候选视频 URL，返回第一个可访问的链接。
+ * 全部失败时返回空字符串。
  */
-async function detectVideoUrl(candidates) {
+async function detectVideoUrl(candidates: string[]): Promise<string> {
     for (const url of candidates) {
         try {
             const res = await got(url, {
                 method: 'HEAD',
                 headers: { Referer: 'https://www.dmm.co.jp/' },
                 timeout: { request: 1500 },
-                throwHttpErrors: false, // 非 2xx 不抛异常，手动判断状态码
+                throwHttpErrors: false,
             });
             if (res.statusCode === 200) {
                 return url;
@@ -147,14 +150,33 @@ async function detectVideoUrl(candidates) {
     return '';
 }
 
-module.exports = async (ctx) => {
-    const tagid = ctx.req.param('tagid');
+export const route: Route = {
+    path: '/tag/:tagid',
+    categories: ['multimedia'],
+    example: '/tktube/tag/d16507037fea89b20ca12ea5159474e5',
+    parameters: { tagid: '标签 ID，从标签页 URL 中获取' },
+    features: {
+        requireConfig: false,
+        requirePuppeteer: false,
+        antiCrawler: false,
+        supportBT: false,
+        supportPodcast: false,
+        supportScihub: false,
+        nsfw: true,
+    },
+    name: '标签',
+    maintainers: [],
+    handler,
+};
+
+async function handler(ctx) {
+    const { tagid } = ctx.req.param();
     const url = `https://tktube.com/zh/tags/${tagid}/`;
 
-    const response = await got(url);
-    const $ = cheerio.load(response.data);
+    const response = await got({ method: 'get', url });
+    const $ = load(response.data);
 
-    const list = $('div.item').get();
+    const list = $('div.item').toArray();
 
     const items = await Promise.全部(
         list.map(async (el) => {
@@ -185,7 +207,7 @@ module.exports = async (ctx) => {
 
             let code = '';
             const avTest = new AV(lastPart);
-            if (avTest && avTest.label && avTest.number) {
+            if (avTest?.label && avTest?.number) {
                 code = `${avTest.label}-${avTest.number}`;
             } else {
                 const fc2Match = lastPart.match(/^(fc2-ppv-\d+)/i);
@@ -207,11 +229,9 @@ module.exports = async (ctx) => {
             const avObj = new AV(code);
             let dmmVideoUrl = '';
 
-            if (avObj && avObj.videos && avObj.videos.length > 0) {
-                // 仅对补零版与原始版（前两个候选）做快速探测
+            if (avObj?.videos?.length > 0) {
                 const candidates = [avObj.videos[0], avObj.videos[1]].filter(Boolean);
                 dmmVideoUrl = await detectVideoUrl(candidates);
-                // 全部探测失败时保底使用第一个候选（可能 404，但保留占位）
                 if (!dmmVideoUrl) {
                     dmmVideoUrl = avObj.videos[0];
                 }
@@ -237,10 +257,10 @@ module.exports = async (ctx) => {
         })
     );
 
-    ctx.state.data = {
+    return {
         title: `TKTube - ${$('title').text() || '标签页'}`,
         link: url,
         description: $('meta[name="description"]').attr('content') || '',
         item: items.filter(Boolean),
     };
-};
+}
