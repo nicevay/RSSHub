@@ -3,6 +3,7 @@ import { load } from 'cheerio';
 import type { Route } from '@/types';
 import got from '@/utils/got';
 import { parseDate } from '@/utils/parse-date';
+import puppeteer from '@/utils/puppeteer';
 
 // ---------- AV 工具类 ----------
 const codePattern = /^(?<label>[a-zA-Z]+)[-_]?(?<number>\d+)(?<suffix>[a-z]+)?$/;
@@ -190,7 +191,7 @@ class AV {
     }
 
     get isVr() {
-        return this.label.endsWith('vr') || vrLabels.has(this.label);
+        return this.label.endsWith('vr') || vrLabels.includes(this.label);
     }
 
     get url() {
@@ -205,8 +206,9 @@ class AV {
         if (this.isVr) {
             return [`${dmmVrVideos}/${this.vid[0]}/${this.vid.slice(0, 3)}/${this.vid}/${this.vid}vrlite.mp4`, `${dmmVrVideos}/${this.id[0]}/${this.id.slice(0, 3)}/${this.id}/${this.id}vrlite.mp4`];
         }
+        const suffixes = ['hhb', 'mhb', '_dmb_w', '_dm_s'];
         const result: string[] = [];
-        for (const sfx of ['hhb', 'mhb', '_dmb_w', '_dm_s']) {
+        for (const sfx of suffixes) {
             result.push(`${dmmVideos}/${this.vid[0]}/${this.vid.slice(0, 3)}/${this.vid}/${this.vid}${sfx}.mp4`);
             result.push(`${dmmVideos}/${this.id[0]}/${this.id.slice(0, 3)}/${this.id}/${this.id}${sfx}.mp4`);
         }
@@ -215,7 +217,7 @@ class AV {
 }
 // ---------- AV 类定义结束 ----------
 
-async function detectVideoUrl(candidates) {
+async function detectVideoUrl(candidates: string[]): Promise<string> {
     const results = await Promise.all(
         candidates.map(async (url) => {
             try {
@@ -225,34 +227,13 @@ async function detectVideoUrl(candidates) {
                     timeout: { request: 1500 },
                     throwHttpErrors: false,
                 });
-                return res.statusCode === 200 ? url : null;
+                return res.statusCode === 200 ? url : '';
             } catch {
-                return null;
+                return '';
             }
         })
     );
-    return results.find(Boolean) ?? '';
-}
-
-// 动态 import，本地开发用系统 Chrome，Vercel 生产用 @sparticuz/chromium
-async function launchBrowser() {
-    // Vercel / Lambda 环境
-    if (process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.VERCEL) {
-        const chromium = (await import('@sparticuz/chromium')).default;
-        const puppeteer = (await import('puppeteer-core')).default;
-        return puppeteer.launch({
-            args: chromium.args,
-            defaultViewport: chromium.defaultViewport,
-            executablePath: await chromium.executablePath(),
-            headless: chromium.headless,
-        });
-    }
-
-    // 本地开发环境：用 puppeteer-core + 本机已安装的 Chrome
-    const puppeteer = (await import('puppeteer-core')).default;
-    // Windows 默认 Chrome 路径，如不同请修改
-    const executablePath = process.env.CHROME_PATH || String.raw`C:\Users\SALRRAB\RSSHub\node_modules\.cache\puppeteer\chrome\win64-136.0.7103.49\chrome-win64\chrome.exe`;
-    return puppeteer.launch({ headless: true, executablePath });
+    return results.find((u) => u !== '') ?? '';
 }
 
 export const route: Route = {
@@ -278,12 +259,12 @@ async function handler(ctx) {
     const { tagid } = ctx.req.param();
     const url = `https://tktube.com/zh/tags/${tagid}/`;
 
-    const browser = await launchBrowser();
+    // 使用 puppeteer 绕过 Cloudflare Bot 验证
+    const browser = await puppeteer();
     const page = await browser.newPage();
-    let html = '';
 
+    let html = '';
     try {
-        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36');
         await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
         await page.waitForSelector('div.item', { timeout: 15000 });
         html = await page.content();
@@ -315,24 +296,30 @@ async function handler(ctx) {
             const dateText = $el.find('div.added em').text().trim();
             const pubDate = dateText ? parseDate(dateText) : null;
 
-            const lastPartMatch = href.match(/\/([^/]+)\/?$/);
-            if (!lastPartMatch) {
-                return null;
-            }
-            const lastPart = lastPartMatch[1];
-
+            // 优先从 title 提取番号（如 "NACR-726 ..."），比 URL slug 更可靠
             let code = '';
-            const avTest = new AV(lastPart);
-            if (avTest?.label && avTest?.number) {
-                code = `${avTest.label}-${avTest.number}`;
+            const titleCodeMatch = title.match(/^([A-Za-z]+-\d+)/);
+            if (titleCodeMatch) {
+                code = titleCodeMatch[1];
             } else {
-                const fc2Match = lastPart.match(/^(fc2-ppv-\d+)/i);
-                if (fc2Match) {
-                    code = fc2Match[1];
+                // fallback：从 URL 最后一段提取
+                const lastPartMatch = href.match(/\/([^/]+)\/?$/);
+                if (!lastPartMatch) {
+                    return null;
+                }
+                const lastPart = lastPartMatch[1];
+                const avTest = new AV(lastPart);
+                if (avTest?.label && avTest?.number) {
+                    code = `${avTest.label}-${avTest.number}`;
                 } else {
-                    const generalMatch = lastPart.match(/([a-z]+[-_]?\d+)/i);
-                    if (generalMatch) {
-                        code = generalMatch[1];
+                    const fc2Match = lastPart.match(/^(fc2-ppv-\d+)/i);
+                    if (fc2Match) {
+                        code = fc2Match[1];
+                    } else {
+                        const generalMatch = lastPart.match(/([a-z]+[-_]?\d+)/i);
+                        if (generalMatch) {
+                            code = generalMatch[1];
+                        }
                     }
                 }
             }
@@ -345,8 +332,7 @@ async function handler(ctx) {
             let dmmVideoUrl = '';
 
             if (avObj?.videos?.length > 0) {
-                const candidates = [avObj.videos[0], avObj.videos[1]].filter(Boolean);
-                dmmVideoUrl = await detectVideoUrl(candidates);
+                dmmVideoUrl = await detectVideoUrl(avObj.videos);
                 if (!dmmVideoUrl) {
                     dmmVideoUrl = avObj.videos[0];
                 }
