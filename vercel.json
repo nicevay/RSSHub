@@ -4,7 +4,9 @@
     "outputDirectory": "src",
     "functions": {
         "src/server.mjs": {
-            "includeFiles": "./src/templates/**/*.art"
+            "includeFiles": "./src/templates/**/*.art",
+            "memory": 1024,
+            "maxDuration": 60
         }
     },
     "rewrites": [
