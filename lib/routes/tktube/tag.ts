@@ -215,25 +215,6 @@ class AV {
 }
 // ---------- AV 类定义结束 ----------
 
-async function detectVideoUrl(candidates) {
-    const results = await Promise.all(
-        candidates.map(async (url) => {
-            try {
-                const res = await got(url, {
-                    method: 'HEAD',
-                    headers: { Referer: 'https://www.dmm.co.jp/' },
-                    timeout: { request: 1500 },
-                    throwHttpErrors: false,
-                });
-                return res.statusCode === 200 ? url : null;
-            } catch {
-                return null;
-            }
-        })
-    );
-    return results.find(Boolean) ?? '';
-}
-
 // 动态 import，本地开发用系统 Chrome，Vercel 生产用 @sparticuz/chromium
 async function launchBrowser() {
     // Vercel / Lambda 环境
@@ -354,27 +335,31 @@ async function handler(ctx) {
             }
 
             const avObj = new AV(code);
-            let dmmVideoUrl = '';
-
-            if (avObj?.videos?.length > 0) {
-                dmmVideoUrl = await detectVideoUrl(avObj.videos);
-                if (!dmmVideoUrl) {
-                    dmmVideoUrl = avObj.videos[0];
-                }
-            }
-
             const embedUrl = `https://tktube.com/zh/embed/${videoId}`;
 
-            const description = [
-                imgSrc ? `<img src="${imgSrc}" width="100%"/><br>` : '',
-                dmmVideoUrl ? `<iframe width="544" height="306" src="${dmmVideoUrl}" frameborder="0" allowfullscreen></iframe><br>` : '',
-                `<iframe width="544" height="306" src="${embedUrl}" frameborder="0" allowfullscreen></iframe><br>`,
-            ].join('\n');
+            // 构建 description 的各部分
+            const parts: string[] = [];
+
+            // 图片
+            if (imgSrc) {
+                parts.push(`<img src="${imgSrc}" width="100%"/><br>`);
+            }
+
+            // DMM 视频（使用 <video> 标签列出所有候选地址）
+            if (avObj?.videos?.length) {
+                const sources = avObj.videos.map((url) => `<source src="${url}" type="video/mp4">`).join('\n');
+                parts.push(
+                    `<video controls playsinline poster="${avObj.cover}" preload="none" style="width:100%; aspect-ratio:16/9" onmouseenter="if(this.preload=='none')this.preload='metadata'">\n${sources}\n</video><br>`
+                );
+            }
+
+            // TKTube iframe
+            parts.push(`<iframe width="544" height="306" src="${embedUrl}" frameborder="0" allowfullscreen></iframe><br>`);
 
             return {
                 title,
                 link: href,
-                description,
+                description: parts.join('\n'),
                 guid: href,
                 pubDate,
             };
