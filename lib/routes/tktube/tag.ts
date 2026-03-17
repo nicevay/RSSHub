@@ -1,13 +1,14 @@
 import { load } from 'cheerio';
 
 import type { Route } from '@/types';
-import got from '@/utils/got';
 import { parseDate } from '@/utils/parse-date';
 
 // ---------- AV 工具类 ----------
 const codePattern = /^(?<label>[a-zA-Z]+)[-_]?(?<number>\d+)(?<suffix>[a-z]+)?$/;
 const dmmMonoPics = 'https://p.dmm.co.jp/mono/movie/adult';
 const dmmDigiPics = 'https://p.dmm.co.jp/digital/video';
+const picsDigiBase = 'https://pics.dmm.co.jp/digital/video';
+const picsMonoBase = 'https://pics.dmm.co.jp/mono/movie/adult';
 const dmmVideos = 'https://cc3001.dmm.co.jp/litevideo/freepv';
 const dmmVrVideos = 'https://cc3001.dmm.co.jp/vrsample';
 const dmmMonoUrl = 'https://www.dmm.co.jp/mono/dvd/-/detail/=/cid=';
@@ -201,6 +202,17 @@ class AV {
         return this.isVr || digiLabels.has(this.label) ? `${dmmDigiPics}/${this.vid}/${this.vid}pl.jpg` : `${dmmMonoPics}/${this.id}/${this.id}pl.jpg`;
     }
 
+    get gallery(): string[] {
+        if (!this.vid) {
+            return [];
+        }
+        const isDigiOrVr = this.isVr || digiLabels.has(this.label);
+        const base = isDigiOrVr ? picsDigiBase : picsMonoBase;
+        const key = isDigiOrVr ? this.vid : this.id;
+        // 封面大图 + 剧照 jp-1 ~ jp-8，用数组字面量 + Array.from 避免 no-immediate-mutation
+        return [`${base}/${key}/${key}pl.jpg`, ...Array.from({ length: 8 }, (_, i) => `${base}/${key}/${key}jp-${i + 1}.jpg`)];
+    }
+
     get videos() {
         if (this.isVr) {
             return [`${dmmVrVideos}/${this.vid[0]}/${this.vid.slice(0, 3)}/${this.vid}/${this.vid}vrlite.mp4`, `${dmmVrVideos}/${this.id[0]}/${this.id.slice(0, 3)}/${this.id}/${this.id}vrlite.mp4`];
@@ -277,7 +289,7 @@ async function handler(ctx) {
     const list = $('div.item').toArray();
 
     const items = await Promise.all(
-        list.map(async (el) => {
+        list.map((el) => {
             const $el = $(el);
             const $link = $el.find('a').first();
             const href = $link.attr('href');
@@ -340,17 +352,21 @@ async function handler(ctx) {
             // 构建 description 的各部分
             const parts: string[] = [];
 
-            // 图片
-            if (imgSrc) {
+            // DMM 图片：封面 + 剧照（优先使用 DMM 图；若无 vid 则回退到 tktube 缩略图）
+            const galleryImgs = avObj?.vid ? avObj.gallery : [];
+            if (galleryImgs.length > 0) {
+                for (const imgUrl of galleryImgs) {
+                    parts.push(`<img src="${imgUrl}" width="100%"/><br>`);
+                }
+            } else if (imgSrc) {
+                // fallback：使用 tktube 原始缩略图
                 parts.push(`<img src="${imgSrc}" width="100%"/><br>`);
             }
 
             // DMM 视频（使用 <video> 标签列出所有候选地址）
             if (avObj?.videos?.length) {
                 const sources = avObj.videos.map((url) => `<source src="${url}" type="video/mp4">`).join('\n');
-                parts.push(
-                    `<video controls playsinline poster="${avObj.cover}" preload="none" style="width:100%; aspect-ratio:16/9" onmouseenter="if(this.preload=='none')this.preload='metadata'">\n${sources}\n</video><br>`
-                );
+                parts.push(`<video controls playsinline poster="${avObj.cover}" preload="none" style="width:100%; aspect-ratio:16/9" onmouseenter="if(this.preload=='none')this.preload='metadata'">\n${sources}\n</video><br>`);
             }
 
             // TKTube iframe
