@@ -209,6 +209,18 @@ class AV {
 }
 // ---------- AV 类定义结束 ----------
 
+/**
+ * 根据 tktube videoId 生成截图 URL。
+ * 规律：folder = Math.floor(videoId / 1000) * 1000
+ * 示例：videoId=381923 → folder=381000
+ * URL: https://file.tkcdns.com/contents/videos_screenshots/{folder}/{videoId}/336x189/1.jpg
+ */
+function tktubeThumb(videoId: string): string {
+    const id = Number(videoId);
+    const folder = Math.floor(id / 1000) * 1000;
+    return `https://file.tkcdns.com/contents/videos_screenshots/${folder}/${videoId}/336x189/1.jpg`;
+}
+
 // 动态 import，本地开发用系统 Chrome，Vercel 生产用 @sparticuz/chromium
 async function launchBrowser() {
     // Vercel / Lambda 环境
@@ -328,26 +340,35 @@ async function handler(ctx) {
                 return null;
             }
 
-            const avObj = new AV(code);
             const embedUrl = `https://tktube.com/zh/embed/${videoId}`;
+            const iframeTag = `<iframe width="544" height="306" src="${embedUrl}" frameborder="0" allowfullscreen="" referrerpolicy="no-referrer"></iframe>`;
 
             // 构建 description 的各部分
             const parts: string[] = [];
 
-            if (title.includes('馬賽克')) {
-                // 馬賽克条目：只输出 tktube 原始缩略图 + iframe，不走 DMM 图片
-                if (imgSrc) {
-                    parts.push(`<img src="${imgSrc}" width="100%" referrerpolicy="no-referrer"/><br>`);
-                }
-                parts.push(`<iframe width="544" height="306" src="${embedUrl}" frameborder="0" allowfullscreen referrerpolicy="no-referrer"></iframe><br>`);
+            // -------------------------------------------------------
+            // FC2-PPV：只用 tktube 自身的截图 + iframe，跳过 DMM 逻辑
+            // -------------------------------------------------------
+            const isFc2 = /^fc2-ppv-/i.test(code);
+
+            if (isFc2) {
+                const thumbUrl = tktubeThumb(videoId);
+                parts.push(`<img src="${thumbUrl}" width="100%" referrerpolicy="no-referrer"><br>`);
+                parts.push(`${iframeTag}<br>`);
             } else {
-                // 普通条目：DMM 图片（封面 + 剧照），回退到 tktube 缩略图
+                // -------------------------------------------------------
+                // 普通番号：走原有 DMM 图片 + DMM 视频 + iframe 逻辑
+                // -------------------------------------------------------
+                const avObj = new AV(code);
+
+                // DMM 图片：封面 + 剧照（优先使用 DMM 图；若无 vid 则回退到 tktube 缩略图）
                 const galleryImgs = avObj?.vid ? avObj.gallery : [];
                 if (galleryImgs.length > 0) {
                     for (const imgUrl of galleryImgs) {
                         parts.push(`<img src="${imgUrl}" width="100%"/><br>`);
                     }
                 } else if (imgSrc) {
+                    // fallback：使用 tktube 原始缩略图
                     parts.push(`<img src="${imgSrc}" width="100%"/><br>`);
                 }
 
@@ -358,7 +379,7 @@ async function handler(ctx) {
                 }
 
                 // TKTube iframe
-                parts.push(`<iframe width="544" height="306" src="${embedUrl}" frameborder="0" allowfullscreen></iframe><br>`);
+                parts.push(`${iframeTag}<br>`);
             }
 
             return {
