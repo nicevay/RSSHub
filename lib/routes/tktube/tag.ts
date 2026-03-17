@@ -334,25 +334,32 @@ async function handler(ctx) {
             // 构建 description 的各部分
             const parts: string[] = [];
 
-            // DMM 图片：封面 + 剧照（优先使用 DMM 图；若无 vid 则回退到 tktube 缩略图）
-            const galleryImgs = avObj?.vid ? avObj.gallery : [];
-            if (galleryImgs.length > 0) {
-                for (const imgUrl of galleryImgs) {
-                    parts.push(`<img src="${imgUrl}" width="100%"/><br>`);
+            if (title.includes('馬賽克')) {
+                // 馬賽克条目：只输出 tktube 原始缩略图 + iframe，不走 DMM 图片
+                if (imgSrc) {
+                    parts.push(`<img src="${imgSrc}" width="100%" referrerpolicy="no-referrer"/><br>`);
                 }
-            } else if (imgSrc) {
-                // fallback：使用 tktube 原始缩略图
-                parts.push(`<img src="${imgSrc}" width="100%"/><br>`);
-            }
+                parts.push(`<iframe width="544" height="306" src="${embedUrl}" frameborder="0" allowfullscreen referrerpolicy="no-referrer"></iframe><br>`);
+            } else {
+                // 普通条目：DMM 图片（封面 + 剧照），回退到 tktube 缩略图
+                const galleryImgs = avObj?.vid ? avObj.gallery : [];
+                if (galleryImgs.length > 0) {
+                    for (const imgUrl of galleryImgs) {
+                        parts.push(`<img src="${imgUrl}" width="100%"/><br>`);
+                    }
+                } else if (imgSrc) {
+                    parts.push(`<img src="${imgSrc}" width="100%"/><br>`);
+                }
 
-            // DMM 视频（使用 <video> 标签列出所有候选地址）
-            if (avObj?.videos?.length) {
-                const sources = avObj.videos.map((url) => `<source src="${url}" type="video/mp4">`).join('\n');
-                parts.push(`<video controls playsinline poster="${avObj.cover}" preload="none" style="width:100%; aspect-ratio:16/9" onmouseenter="if(this.preload=='none')this.preload='metadata'">\n${sources}\n</video><br>`);
-            }
+                // DMM 视频（使用 <video> 标签列出所有候选地址）
+                if (avObj?.videos?.length) {
+                    const sources = avObj.videos.map((url) => `<source src="${url}" type="video/mp4">`).join('\n');
+                    parts.push(`<video controls playsinline poster="${avObj.cover}" preload="none" style="width:100%; aspect-ratio:16/9" onmouseenter="if(this.preload=='none')this.preload='metadata'">\n${sources}\n</video><br>`);
+                }
 
-            // TKTube iframe
-            parts.push(`<iframe width="544" height="306" src="${embedUrl}" frameborder="0" allowfullscreen></iframe><br>`);
+                // TKTube iframe
+                parts.push(`<iframe width="544" height="306" src="${embedUrl}" frameborder="0" allowfullscreen></iframe><br>`);
+            }
 
             return {
                 title,
