@@ -9,45 +9,13 @@ const dmmMonoPics = 'https://p.dmm.co.jp/mono/movie/adult';
 const dmmDigiPics = 'https://p.dmm.co.jp/digital/video';
 const picsDigiBase = 'https://pics.dmm.co.jp/digital/video';
 const picsMonoBase = 'https://pics.dmm.co.jp/mono/movie/adult';
+
+// labels 中数字前缀的系列为实体碟（mono），h_xxx / n_xxx 及未知系列默认走 digital
+const monoLabelPrefixes = new Set([1, 2, 13, 24, 41, 53, 55, 59, 118, 5433, 5642]);
 const dmmVideos = 'https://cc3001.dmm.co.jp/litevideo/freepv';
 const dmmVrVideos = 'https://cc3001.dmm.co.jp/vrsample';
 const dmmMonoUrl = 'https://www.dmm.co.jp/mono/dvd/-/detail/=/cid=';
 const dmmDigiUrl = 'https://www.dmm.co.jp/digital/videoa/-/detail/=/cid=';
-
-const digiLabels = new Set([
-    'aiav',
-    'beaf',
-    'docd',
-    'docp',
-    'fax',
-    'fabs',
-    'fns',
-    'hmrk',
-    'htms',
-    'hoks',
-    'kamef',
-    'kmai',
-    'maan',
-    'mdon',
-    'mfcd',
-    'mfct',
-    'mgtd',
-    'neob',
-    'open',
-    'pred',
-    'sdhs',
-    'senn',
-    'seth',
-    'shyn',
-    'silks',
-    'silku',
-    'sprd',
-    'sqis',
-    'stzy',
-    'vov',
-    'xox',
-    'yyds',
-]);
 
 const vrLabels = new Set(['aqube', 'aquco', 'aquga', 'aquma', 'exmo', 'fsvss', 'gopj', 'komz', 'slr', 'urvrsp', 'kmhrs']);
 
@@ -196,21 +164,34 @@ class AV {
         return this.label.endsWith('vr') || vrLabels.has(this.label);
     }
 
+    // labels 中数字前缀的系列是实体碟（mono），其余（h_xxx、n_xxx、未知）默认 digital
+    get isMono() {
+        if (this.isVr) {
+            return false;
+        }
+        for (const [key, list] of Object.entries(labels)) {
+            if (list.includes(this.label)) {
+                return monoLabelPrefixes.has(Number(key));
+            }
+        }
+        // 未登记的 label 默认 digital
+        return false;
+    }
+
     get url() {
-        return this.isVr || digiLabels.has(this.label) ? `${dmmDigiUrl}${this.vid}/` : `${dmmMonoUrl}${this.id}/`;
+        return this.isMono ? `${dmmMonoUrl}${this.id}/` : `${dmmDigiUrl}${this.vid}/`;
     }
 
     get cover() {
-        return this.isVr || digiLabels.has(this.label) ? `${dmmDigiPics}/${this.vid}/${this.vid}pl.jpg` : `${dmmMonoPics}/${this.id}/${this.id}pl.jpg`;
+        return this.isMono ? `${dmmMonoPics}/${this.id}/${this.id}pl.jpg` : `${dmmDigiPics}/${this.vid}/${this.vid}pl.jpg`;
     }
 
     get gallery(): string[] {
         if (!this.vid) {
             return [];
         }
-        const isDigiOrVr = this.isVr || digiLabels.has(this.label);
-        const base = isDigiOrVr ? picsDigiBase : picsMonoBase;
-        const key = isDigiOrVr ? this.vid : this.id;
+        const base = this.isMono ? picsMonoBase : picsDigiBase;
+        const key = this.isMono ? this.id : this.vid;
         return [`${base}/${key}/${key}pl.jpg`, ...Array.from({ length: 8 }, (_, i) => `${base}/${key}/${key}jp-${i + 1}.jpg`)];
     }
 
