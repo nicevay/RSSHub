@@ -21,6 +21,7 @@ const digiLabels = new Set([
     'docp',
     'fax',
     'fabs',
+    'fns',
     'hmrk',
     'htms',
     'hoks',
@@ -33,6 +34,7 @@ const digiLabels = new Set([
     'mgtd',
     'neob',
     'open',
+    'pred',
     'sdhs',
     'senn',
     'seth',
@@ -209,7 +211,6 @@ class AV {
         const isDigiOrVr = this.isVr || digiLabels.has(this.label);
         const base = isDigiOrVr ? picsDigiBase : picsMonoBase;
         const key = isDigiOrVr ? this.vid : this.id;
-        // 封面大图 + 剧照 jp-1 ~ jp-8，用数组字面量 + Array.from 避免 no-immediate-mutation
         return [`${base}/${key}/${key}pl.jpg`, ...Array.from({ length: 8 }, (_, i) => `${base}/${key}/${key}jp-${i + 1}.jpg`)];
     }
 
