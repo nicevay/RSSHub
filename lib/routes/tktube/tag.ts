@@ -310,10 +310,10 @@ async function handler(ctx) {
 
             let code = '';
 
-            // 优先从 title 中提取番号（最准确，避免 URL 末尾数字被混入的问题）
-            // title 通常格式为 "NACR-726 女優名" 或 "FC2-PPV-1234567 ..."
-            const titleFc2Match = title.match(/^(fc2-ppv-\d+)/i);
-            const titleCodeMatch = title.match(/^([a-zA-Z]+-\d+[a-z]*)/);
+            // 优先从 title 中提取番号（最准确，避免 URL slug 附加数字导致番号错误）
+            // 使用 \b 单词边界而非 ^ 行首，以兼容 "【去馬賽克】XVSR-840 ..." 这类带前缀方括号的标题
+            const titleFc2Match = title.match(/\b(fc2-ppv-\d+)\b/i);
+            const titleCodeMatch = title.match(/\b([a-zA-Z]+-\d+[a-z]*)\b/);
             if (titleFc2Match) {
                 code = titleFc2Match[1];
             } else if (titleCodeMatch) {
