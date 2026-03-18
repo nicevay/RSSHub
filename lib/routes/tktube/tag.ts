@@ -19,6 +19,12 @@ const dmmDigiUrl = 'https://www.dmm.co.jp/digital/videoa/-/detail/=/cid=';
 
 const vrLabels = new Set(['aqube', 'aquco', 'aquga', 'aquma', 'exmo', 'fsvss', 'gopj', 'komz', 'slr', 'urvrsp', 'kmhrs']);
 
+// 有数字前缀但实际走 digital 路径的 label，key 为 label，value 为 DMM 前缀字符串
+const digitalNumericLabels: Record<string, string> = {
+    fthtd: '1',
+    ftds: 'h_1300',
+};
+
 const labels = {
     1: [
         'aiav',
@@ -141,6 +147,7 @@ class AV {
     suffix = '';
     id = '';
     vid = '';
+    private _forceDigital = false;
 
     constructor(s) {
         const match = s.match(codePattern);
@@ -148,6 +155,16 @@ class AV {
             this.label = match.groups.label.toLowerCase();
             this.number = match.groups.number;
             this.suffix = match.groups.suffix || '';
+
+            // 优先检查 digitalNumericLabels：有数字前缀但强制走 digital
+            if (this.label in digitalNumericLabels) {
+                const prefix = digitalNumericLabels[this.label];
+                this.id = `${prefix}${this.label}${this.number}${this.suffix}`;
+                this.vid = `${prefix}${this.label}${this.number.padStart(5, '0')}${this.suffix}`;
+                this._forceDigital = true;
+                return;
+            }
+
             for (const [key, list] of Object.entries(labels)) {
                 if (list.includes(this.label)) {
                     this.id = `${key}${this.label}${this.number}${this.suffix}`;
@@ -166,7 +183,7 @@ class AV {
 
     // labels 中数字前缀的系列是实体碟（mono），其余（h_xxx、n_xxx、未知）默认 digital
     get isMono() {
-        if (this.isVr) {
+        if (this._forceDigital || this.isVr) {
             return false;
         }
         for (const [key, list] of Object.entries(labels)) {
@@ -313,9 +330,15 @@ async function handler(ctx) {
             // 优先从 title 中提取番号（最准确，避免 URL slug 附加数字导致番号错误）
             // 使用 \b 单词边界而非 ^ 行首，以兼容 "【去馬賽克】XVSR-840 ..." 这类带前缀方括号的标题
             const titleFc2Match = title.match(/\b(fc2-ppv-\d+)\b/i);
+            // 数字开头的番号，如 348NTR-093、200GANA-001
+            const titleNumPrefixMatch = title.match(/\b(\d+[a-zA-Z]+-\d+)\b/);
             const titleCodeMatch = title.match(/\b([a-zA-Z]+-\d+[a-z]*)\b/);
+
             if (titleFc2Match) {
                 code = titleFc2Match[1];
+            } else if (titleNumPrefixMatch) {
+                // 数字开头番号：走 tktube 缩略图 + iframe，不查 DMM
+                code = titleNumPrefixMatch[1];
             } else if (titleCodeMatch) {
                 code = titleCodeMatch[1];
             } else {
@@ -347,11 +370,13 @@ async function handler(ctx) {
             const parts: string[] = [];
 
             // -------------------------------------------------------
-            // FC2-PPV：只用 tktube 自身的截图 + iframe，跳过 DMM 逻辑
+            // FC2-PPV 或数字开头番号（如 348NTR-093）：
+            // 只用 tktube 自身的截图 + iframe，跳过 DMM 逻辑
             // -------------------------------------------------------
             const isFc2 = /^fc2-ppv-/i.test(code);
+            const isNumPrefix = /^\d/.test(code);
 
-            if (isFc2) {
+            if (isFc2 || isNumPrefix) {
                 const thumbUrl = tktubeThumb(videoId);
                 parts.push(`<img src="${thumbUrl}" width="100%" referrerpolicy="no-referrer"><br>`);
                 parts.push(`${iframeTag}<br>`);
