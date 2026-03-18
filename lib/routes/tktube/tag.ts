@@ -254,16 +254,18 @@ async function launchBrowser() {
 
     // 本地开发环境：用 puppeteer-core + 本机已安装的 Chrome
     const puppeteer = (await import('puppeteer-core')).default;
-    // Windows 默认 Chrome 路径，如不同请修改
     const executablePath = process.env.CHROME_PATH || String.raw`C:\Users\SALRRAB\RSSHub\node_modules\.cache\puppeteer\chrome\win64-136.0.7103.49\chrome-win64\chrome.exe`;
     return puppeteer.launch({ headless: true, executablePath });
 }
 
 export const route: Route = {
-    path: '/tag/:tagid',
+    path: '/tag/:tagid/:page?',
     categories: ['multimedia'],
-    example: '/tktube/tag/d16507037fea89b20ca12ea5159474e5',
-    parameters: { tagid: 'Tag ID, found in the tag page URL' },
+    example: '/tktube/tag/d16507037fea89b20ca12ea5159474e5/1',
+    parameters: {
+        tagid: 'Tag ID, found in the tag page URL',
+        page: 'Page number (default: 1)',
+    },
     features: {
         requireConfig: false,
         requirePuppeteer: true,
@@ -279,20 +281,50 @@ export const route: Route = {
 };
 
 async function handler(ctx) {
-    const { tagid } = ctx.req.param();
+    const { tagid, page: pageParam } = ctx.req.param();
+    const page = Math.max(1, Number(pageParam) || 1);
     const url = `https://tktube.com/zh/tags/${tagid}/`;
 
     const browser = await launchBrowser();
-    const page = await browser.newPage();
+    const browserPage = await browser.newPage();
     let html = '';
 
     try {
-        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36');
-        await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
-        await page.waitForSelector('div.item', { timeout: 15000 });
-        html = await page.content();
+        await browserPage.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36');
+        await browserPage.goto(url, { waitUntil: 'networkidle2', timeout: 30_000 });
+        await browserPage.waitForSelector('div.item', { timeout: 15_000 });
+
+        if (page > 1) {
+            // 通过站点内置 Ajax 机制跳转到指定页，无需重新加载整个页面
+            // tktube (KVS) 的翻页链接格式：data-parameters="sort_by:post_date;from:XX"
+            // 页码在前9页时 DOM 中有对应 <a>，10页以后只渲染"..."跳转链接，
+            // 此时改写隐藏跳转链接的 data-parameters 再触发点击
+            const pageStr = String(page).padStart(2, '0');
+            await browserPage.evaluate((ps) => {
+                // 优先找精确页码链接
+                const link = document.querySelector(
+                    `a[data-action="ajax"][data-parameters="sort_by:post_date;from:${ps}"]`
+                ) as HTMLElement | null;
+                if (link) {
+                    link.click();
+                    return;
+                }
+                // 找不到时（页码超出渲染范围），改写隐藏跳转链接再点击
+                const numLink = document.querySelector('a[id$="_pagination_num"]') as HTMLElement | null;
+                if (numLink) {
+                    numLink.setAttribute('data-parameters', `sort_by:post_date;from:${ps}`);
+                    numLink.click();
+                }
+            }, pageStr);
+
+            // 等待 Ajax 完成、列表内容刷新
+            await browserPage.waitForNetworkIdle({ idleTime: 1000, timeout: 15_000 });
+            await browserPage.waitForSelector('div.item', { timeout: 10_000 });
+        }
+
+        html = await browserPage.content();
     } finally {
-        await page.close();
+        await browserPage.close();
         await browser.close();
     }
 
@@ -399,7 +431,7 @@ async function handler(ctx) {
 
                 // DMM 视频（使用 <video> 标签列出所有候选地址）
                 if (avObj?.videos?.length) {
-                    const sources = avObj.videos.map((url) => `<source src="${url}" type="video/mp4">`).join('\n');
+                    const sources = avObj.videos.map((u) => `<source src="${u}" type="video/mp4">`).join('\n');
                     parts.push(`<video controls playsinline poster="${avObj.cover}" preload="none" style="width:100%; aspect-ratio:16/9" onmouseenter="if(this.preload=='none')this.preload='metadata'">\n${sources}\n</video><br>`);
                 }
 
@@ -418,7 +450,7 @@ async function handler(ctx) {
     );
 
     return {
-        title: `TKTube - ${$('title').text() || 'Tag'}`,
+        title: `TKTube - ${$('title').text() || 'Tag'} - Page ${page}`,
         link: url,
         description: $('meta[name="description"]').attr('content') || '',
         item: items.filter(Boolean),
