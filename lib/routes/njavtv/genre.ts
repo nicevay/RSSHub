@@ -1,16 +1,14 @@
 import { load } from 'cheerio';
 
 import type { Route } from '@/types';
-import { parseDate } from '@/utils/parse-date';
 
-// ---------- AV 工具类 ----------
+// ---------- AV 工具类（完全照抄最新版 tag.ts）----------
 const codePattern = /^(?<label>[a-zA-Z]+)[-_]?(?<number>\d+)(?<suffix>[a-z]+)?$/;
 const dmmMonoPics = 'https://p.dmm.co.jp/mono/movie/adult';
 const dmmDigiPics = 'https://p.dmm.co.jp/digital/video';
 const picsDigiBase = 'https://pics.dmm.co.jp/digital/video';
 const picsMonoBase = 'https://pics.dmm.co.jp/mono/movie/adult';
 
-// labels 中数字前缀的系列为实体碟（mono），h_xxx / n_xxx 及未知系列默认走 digital
 const monoLabelPrefixes = new Set([1, 2, 13, 24, 41, 53, 55, 59, 118, 5433, 5642]);
 const dmmVideos = 'https://cc3001.dmm.co.jp/litevideo/freepv';
 const dmmVrVideos = 'https://cc3001.dmm.co.jp/vrsample';
@@ -19,14 +17,11 @@ const dmmDigiUrl = 'https://www.dmm.co.jp/digital/videoa/-/detail/=/cid=';
 
 const vrLabels = new Set(['aqube', 'aquco', 'aquga', 'aquma', 'exmo', 'fsvss', 'gopj', 'komz', 'slr', 'urvrsp', 'kmhrs']);
 
-// 有数字前缀但实际走 digital 路径的 label，key 为 label，value 为 DMM 前缀字符串
 const digitalNumericLabels: Record<string, string> = {
     fthtd: '1',
     ftds: 'h_1300',
 };
 
-// 明确走 digital 路径且不需要任何前缀的 label
-// 这些 label 即使出现在 labels 的数字前缀组里，id 和 vid 也直接用 label+number，不加前缀
 const digitalOnlyLabels = new Set(['dass']);
 
 const labels = {
@@ -154,14 +149,13 @@ class AV {
     vid = '';
     private _forceDigital = false;
 
-    constructor(s) {
+    constructor(s: string) {
         const match = s.match(codePattern);
         if (match?.groups) {
             this.label = match.groups.label.toLowerCase();
             this.number = match.groups.number;
             this.suffix = match.groups.suffix || '';
 
-            // 最优先：digitalOnlyLabels 中的 label 不加任何前缀，直接走 digital
             if (digitalOnlyLabels.has(this.label)) {
                 this.id = `${this.label}${this.number}${this.suffix}`;
                 this.vid = `${this.label}${this.number.padStart(5, '0')}${this.suffix}`;
@@ -169,7 +163,6 @@ class AV {
                 return;
             }
 
-            // 其次：digitalNumericLabels 中有数字前缀但强制走 digital
             if (this.label in digitalNumericLabels) {
                 const prefix = digitalNumericLabels[this.label];
                 this.id = `${prefix}${this.label}${this.number}${this.suffix}`;
@@ -194,12 +187,10 @@ class AV {
         return this.label.endsWith('vr') || vrLabels.has(this.label);
     }
 
-    // labels 中数字前缀的系列是实体碟（mono），其余（h_xxx、n_xxx、未知）默认 digital
     get isMono() {
         if (this._forceDigital || this.isVr) {
             return false;
         }
-        // digitalOnlyLabels 中的 label 强制走 digital，即使其在数字前缀组里
         if (digitalOnlyLabels.has(this.label)) {
             return false;
         }
@@ -208,7 +199,6 @@ class AV {
                 return monoLabelPrefixes.has(Number(key));
             }
         }
-        // 未登记的 label 默认 digital
         return false;
     }
 
@@ -243,21 +233,8 @@ class AV {
 }
 // ---------- AV 类定义结束 ----------
 
-/**
- * 根据 tktube videoId 生成截图 URL。
- * 规律：folder = Math.floor(videoId / 1000) * 1000
- * 示例：videoId=381923 → folder=381000
- * URL: https://file.tkcdns.com/contents/videos_screenshots/{folder}/{videoId}/336x189/1.jpg
- */
-function tktubeThumb(videoId: string): string {
-    const id = Number(videoId);
-    const folder = Math.floor(id / 1000) * 1000;
-    return `https://file.tkcdns.com/contents/videos_screenshots/${folder}/${videoId}/336x189/1.jpg`;
-}
-
 // 动态 import，本地开发用系统 Chrome，Vercel 生产用 @sparticuz/chromium
 async function launchBrowser() {
-    // Vercel / Lambda 环境
     if (process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.VERCEL) {
         const chromium = (await import('@sparticuz/chromium')).default;
         const puppeteer = (await import('puppeteer-core')).default;
@@ -268,21 +245,16 @@ async function launchBrowser() {
             headless: chromium.headless,
         });
     }
-
-    // 本地开发环境：用 puppeteer-core + 本机已安装的 Chrome
     const puppeteer = (await import('puppeteer-core')).default;
     const executablePath = process.env.CHROME_PATH || String.raw`C:\Users\SALRRAB\RSSHub\node_modules\.cache\puppeteer\chrome\win64-136.0.7103.49\chrome-win64\chrome.exe`;
     return puppeteer.launch({ headless: true, executablePath });
 }
 
 export const route: Route = {
-    path: '/tag/:tagid/:page?',
+    path: '/genre/:genre',
     categories: ['multimedia'],
-    example: '/tktube/tag/d16507037fea89b20ca12ea5159474e5/1',
-    parameters: {
-        tagid: 'Tag ID, found in the tag page URL',
-        page: 'Page number (default: 1)',
-    },
+    example: '/njavtv/genre/大屁股',
+    parameters: { genre: 'Genre name (Chinese or URL-encoded), taken from the genre page URL' },
     features: {
         requireConfig: false,
         requirePuppeteer: true,
@@ -292,126 +264,87 @@ export const route: Route = {
         supportScihub: false,
         nsfw: true,
     },
-    name: 'Tag',
+    name: 'Genre',
     maintainers: [],
     handler,
 };
 
 async function handler(ctx) {
-    const { tagid, page: pageParam } = ctx.req.param();
-    const page = Math.max(1, Number(pageParam) || 1);
-    const url = `https://tktube.com/zh/tags/${tagid}/`;
+    const { genre } = ctx.req.param();
+    const encodedGenre = encodeURIComponent(genre);
+    const listUrl = `https://njavtv.com/dm110/genres/${encodedGenre}`;
 
+    // nJAV 对直接 HTTP 请求返回 403，列表页也需要 Puppeteer
+    // 只需一次 Puppeteer 抓列表页，不进详情页，速度快
     const browser = await launchBrowser();
-    const browserPage = await browser.newPage();
-    let html = '';
-
+    const page = await browser.newPage();
+    let listHtml = '';
     try {
-        await browserPage.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36');
-        await browserPage.goto(url, { waitUntil: 'networkidle2', timeout: 30_000 });
-        await browserPage.waitForSelector('div.item', { timeout: 15_000 });
-
-        if (page > 1) {
-            // 通过站点内置 Ajax 机制跳转到指定页，无需重新加载整个页面
-            // tktube (KVS) 的翻页链接格式：data-parameters="sort_by:post_date;from:XX"
-            // 页码在前9页时 DOM 中有对应 <a>，10页以后只渲染"..."跳转链接，
-            // 此时改写隐藏跳转链接的 data-parameters 再触发点击
-            const pageStr = String(page).padStart(2, '0');
-            await browserPage.evaluate((ps) => {
-                // 优先找精确页码链接
-                const link = document.querySelector(
-                    `a[data-action="ajax"][data-parameters="sort_by:post_date;from:${ps}"]`
-                ) as HTMLElement | null;
-                if (link) {
-                    link.click();
-                    return;
-                }
-                // 找不到时（页码超出渲染范围），改写隐藏跳转链接再点击
-                const numLink = document.querySelector('a[id$="_pagination_num"]') as HTMLElement | null;
-                if (numLink) {
-                    numLink.setAttribute('data-parameters', `sort_by:post_date;from:${ps}`);
-                    numLink.click();
-                }
-            }, pageStr);
-
-            // 等待 Ajax 完成、列表内容刷新
-            await browserPage.waitForNetworkIdle({ idleTime: 1000, timeout: 15_000 });
-            await browserPage.waitForSelector('div.item', { timeout: 10_000 });
-        }
-
-        html = await browserPage.content();
+        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36');
+        await page.goto(listUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+        await page.waitForSelector('.thumbnail', { timeout: 15000 });
+        listHtml = await page.content();
     } finally {
-        await browserPage.close();
+        await page.close();
         await browser.close();
     }
 
-    const $ = load(html);
-    const list = $('div.item').toArray();
+    const $ = load(listHtml);
+    const feedTitle = $('meta[property="og:title"]').attr('content') || `nJAV - ${genre}`;
 
-    const items = await Promise.all(
-        list.map((el) => {
+    // 卡片结构：
+    //   <div class="thumbnail group">
+    //     <a href="https://njavtv.com/{slug}">
+    //       <img data-src="https://fourhoi.com/{slug}/cover-t.jpg">
+    //     </a>
+    //     <a class="text-secondary ..." href="https://njavtv.com/{slug}">{TITLE}</a>
+    //   </div>
+    const cards = $('.thumbnail.group').toArray();
+
+    const items = cards
+        .map((el) => {
             const $el = $(el);
-            const $link = $el.find('a').first();
-            const href = $link.attr('href');
+
+            const href = $el.find('a').first().attr('href');
             if (!href) {
                 return null;
             }
 
-            const title = $el.find('strong.title').text().trim();
-            const videoId = $el.find('span.ico-fav-0').attr('data-fav-video-id');
-            if (!title || !videoId) {
+            const slugMatch = href.match(/\/([^/]+)\/?$/);
+            if (!slugMatch) {
                 return null;
             }
+            const slug = slugMatch[1];
 
-            const $img = $el.find('img.thumb');
-            const imgSrc = $img.attr('data-webp') || $img.attr('src') || '';
-            const dateText = $el.find('div.added em').text().trim();
-            const pubDate = dateText ? parseDate(dateText) : null;
+            const title = $el.find('a.text-secondary').text().trim() || slug.toUpperCase();
 
-            const lastPartMatch = href.match(/\/([^/]+)\/?$/);
-            if (!lastPartMatch) {
-                return null;
-            }
-            const lastPart = lastPartMatch[1];
+            // nJAV 列表页缩略图（FC2 / 数字前缀番号使用）
+            const coverThumb = $el.find('img[data-src]').attr('data-src') || `https://fourhoi.com/${slug}/cover-t.jpg`;
 
+            // ── 番号提取（对齐最新版 tag.ts 逻辑）──────────────────────────────
             let code = '';
-
-            // 优先从 title 中提取番号（最准确，避免 URL slug 附加数字导致番号错误）
-            // 使用 \b 单词边界而非 ^ 行首，以兼容 "【去馬賽克】XVSR-840 ..." 这类带前缀方括号的标题
             const titleFc2Match = title.match(/\b(fc2-ppv-\d+)\b/i);
-            // 数字开头的番号，如 348NTR-093、200GANA-001
             const titleNumPrefixMatch = title.match(/\b(\d+[a-zA-Z]+-\d+)\b/);
-            // 普通番号：匹配 "字母-数字"，并剥离后续的版本标记后缀（如 -C、-U、-C-U 等单字母大写段）
-            // 例：DASS-787C-U → 先匹配到 DASS-787C，再通过 versionSuffixPattern 去掉 -C
-            // 普通番号：匹配 "字母-数字"，同时允许末尾跟小写字母 suffix（如 cd、a）或大写版本标记（如 C、U）
             const titleCodeRaw = title.match(/\b([a-zA-Z]+-\d+[a-zA-Z]*)\b/);
 
             if (titleFc2Match) {
                 code = titleFc2Match[1];
             } else if (titleNumPrefixMatch) {
-                // 数字开头番号：走 tktube 缩略图 + iframe，不查 DMM
                 code = titleNumPrefixMatch[1];
             } else if (titleCodeRaw) {
-                // 剥离版本标记后缀，兼容两种形式：
-                //   有连字符：DASS-787-C-U → DASS-787
-                //   无连字符：DASS-787C、DASS-787CU → DASS-787
-                // 规则：数字后紧跟的纯大写字母段 或 "-大写字母" 重复段，均视为版本标记
                 const raw = titleCodeRaw[1];
-                const cleaned = raw
-                    .replace(/(-[A-Z]+)+$/, '') // 去除 -C、-U、-C-U 等有连字符形式
-                    .replace(/([0-9])([A-Z]+)$/, '$1'); // 去除 787C、787CU 等无连字符大写后缀
-                code = cleaned;
+                code = raw.replace(/(-[A-Z]+)+$/, '').replace(/([0-9])([A-Z]+)$/, '$1');
             } else {
-                // fallback：从 URL 末尾解析
-                const fc2Match = lastPart.match(/^(fc2-ppv-\d+)/i);
+                const slugBase = slug.replace(/-uncensored.*$/i, '').replace(/-leak.*$/i, '');
+                const fc2Match = slugBase.match(/^(fc2-ppv-\d+)/i);
                 if (fc2Match) {
                     code = fc2Match[1];
                 } else {
-                    const avTest = new AV(lastPart);
+                    const avTest = new AV(slugBase);
                     if (avTest?.label && avTest?.number) {
                         code = `${avTest.label}-${avTest.number}${avTest.suffix}`;
                     } else {
-                        const generalMatch = lastPart.match(/([a-z]+[-_]?\d+[a-z]?)/i);
+                        const generalMatch = slugBase.match(/([a-z]+[-_]?\d+[a-z]?)/i);
                         if (generalMatch) {
                             code = generalMatch[1];
                         }
@@ -423,69 +356,51 @@ async function handler(ctx) {
                 return null;
             }
 
-            const embedUrl = `https://tktube.com/zh/embed/${videoId}`;
-            const iframeTag = `<iframe width="544" height="306" src="${embedUrl}" frameborder="0" allowfullscreen="" referrerpolicy="no-referrer"></iframe>`;
-
-            // 构建 description 的各部分
-            const parts: string[] = [];
-
-            // -------------------------------------------------------
-            // FC2-PPV 或数字开头番号（如 348NTR-093）：
-            // 只用 tktube 自身的截图 + iframe，跳过 DMM 逻辑
-            // -------------------------------------------------------
             const isFc2 = /^fc2-ppv-/i.test(code);
             const isNumPrefix = /^\d/.test(code);
 
+            // ── 组装 description ────────────────────────────────────────────────
+            const parts: string[] = [];
+
             if (isFc2 || isNumPrefix) {
-                const thumbUrl = tktubeThumb(videoId);
-                parts.push(`<img src="${thumbUrl}" width="100%" referrerpolicy="no-referrer"><br>`);
-                parts.push(`${iframeTag}<br>`);
+                // FC2 / 数字开头番号：只输出一张 nJAV 缩略图
+                parts.push(`<img src="${coverThumb}" width="100%" referrerpolicy="no-referrer"><br>`);
             } else {
-                // -------------------------------------------------------
-                // 普通番号：走原有 DMM 图片 + DMM 视频 + iframe 逻辑
-                // -------------------------------------------------------
+                // 普通番号：DMM 图片（封面 + 剧照）→ DMM 预告片
                 const avObj = new AV(code);
 
-                // DMM 图片：封面 + 剧照（优先使用 DMM 图；若无 vid 则回退到 tktube 缩略图）
+                // 1. DMM 图片：封面 pl + 剧照 jp-1~8（来自 pics.dmm.co.jp）
                 const galleryImgs = avObj?.vid ? avObj.gallery : [];
                 if (galleryImgs.length > 0) {
                     for (const imgUrl of galleryImgs) {
-                        parts.push(`<img src="${imgUrl}" width="100%"/><br>`);
+                        parts.push(`<img src="${imgUrl}" width="100%" referrerpolicy="no-referrer"><br>`);
                     }
-                } else if (imgSrc) {
-                    // fallback：使用 tktube 原始缩略图
-                    parts.push(`<img src="${imgSrc}" width="100%"/><br>`);
+                } else {
+                    // 无 DMM 图时回退到 nJAV 缩略图
+                    parts.push(`<img src="${coverThumb}" width="100%" referrerpolicy="no-referrer"><br>`);
                 }
 
-                // DMM 视频（使用 <video> 标签列出所有候选地址）
+                // 2. DMM 预告片（多 source 候选）
                 if (avObj?.videos?.length) {
                     const sources = avObj.videos.map((u) => `<source src="${u}" type="video/mp4">`).join('\n');
                     parts.push(`<video controls playsinline poster="${avObj.cover}" preload="none" style="width:100%; aspect-ratio:16/9" onmouseenter="if(this.preload=='none')this.preload='metadata'">\n${sources}\n</video><br>`);
                 }
-
-                // TKTube iframe
-                parts.push(`${iframeTag}<br>`);
             }
-
-            // 将番号统一转为小写并确保含连字符，用于构造 njavtv 全文地址
-            // 例：MRSS-181 → mrss-181，FC2-PPV-123456 → fc2-ppv-123456
-            const codeForUrl = code.toLowerCase().replaceAll(/_/g, '-');
-            const njavtvLink = `https://njavtv.com/${codeForUrl}`;
 
             return {
                 title,
-                link: njavtvLink,
+                link: href,
                 description: parts.join('\n'),
                 guid: href,
-                pubDate,
+                pubDate: null,
             };
         })
-    );
+        .filter(Boolean);
 
     return {
-        title: `TKTube - ${$('title').text() || 'Tag'} - Page ${page}`,
-        link: url,
-        description: $('meta[name="description"]').attr('content') || '',
-        item: items.filter(Boolean),
+        title: feedTitle,
+        link: listUrl,
+        description: $('meta[name="description"]').attr('content') || `nJAV ${genre} 類型最新影片`,
+        item: items,
     };
 }
