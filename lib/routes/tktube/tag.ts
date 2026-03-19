@@ -435,9 +435,14 @@ async function handler(ctx) {
                 parts.push(`${iframeTag}<br>`);
             }
 
+            // 将番号统一转为小写并确保含连字符，用于构造 njavtv 全文地址
+            // 例：MRSS-181 → mrss-181，FC2-PPV-123456 → fc2-ppv-123456
+            const codeForUrl = code.toLowerCase().replaceAll(/_/g, '-');
+            const njavtvLink = `https://njavtv.com/${codeForUrl}`;
+
             return {
                 title,
-                link: href,
+                link: njavtvLink,
                 description: parts.join('\n'),
                 guid: href,
                 pubDate,
