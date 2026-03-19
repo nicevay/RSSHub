@@ -25,6 +25,10 @@ const digitalNumericLabels: Record<string, string> = {
     ftds: 'h_1300',
 };
 
+// 明确走 digital 路径且不需要任何前缀的 label
+// 这些 label 即使出现在 labels 的数字前缀组里，id 和 vid 也直接用 label+number，不加前缀
+const digitalOnlyLabels = new Set(['dass']);
+
 const labels = {
     1: [
         'aiav',
@@ -34,6 +38,7 @@ const labels = {
         'emois',
         'fadss',
         'fcdss',
+        'fns',
         'fsdss',
         'fsvss',
         'ftav',
@@ -156,7 +161,15 @@ class AV {
             this.number = match.groups.number;
             this.suffix = match.groups.suffix || '';
 
-            // 优先检查 digitalNumericLabels：有数字前缀但强制走 digital
+            // 最优先：digitalOnlyLabels 中的 label 不加任何前缀，直接走 digital
+            if (digitalOnlyLabels.has(this.label)) {
+                this.id = `${this.label}${this.number}${this.suffix}`;
+                this.vid = `${this.label}${this.number.padStart(5, '0')}${this.suffix}`;
+                this._forceDigital = true;
+                return;
+            }
+
+            // 其次：digitalNumericLabels 中有数字前缀但强制走 digital
             if (this.label in digitalNumericLabels) {
                 const prefix = digitalNumericLabels[this.label];
                 this.id = `${prefix}${this.label}${this.number}${this.suffix}`;
@@ -184,6 +197,10 @@ class AV {
     // labels 中数字前缀的系列是实体碟（mono），其余（h_xxx、n_xxx、未知）默认 digital
     get isMono() {
         if (this._forceDigital || this.isVr) {
+            return false;
+        }
+        // digitalOnlyLabels 中的 label 强制走 digital，即使其在数字前缀组里
+        if (digitalOnlyLabels.has(this.label)) {
             return false;
         }
         for (const [key, list] of Object.entries(labels)) {
@@ -332,15 +349,26 @@ async function handler(ctx) {
             const titleFc2Match = title.match(/\b(fc2-ppv-\d+)\b/i);
             // 数字开头的番号，如 348NTR-093、200GANA-001
             const titleNumPrefixMatch = title.match(/\b(\d+[a-zA-Z]+-\d+)\b/);
-            const titleCodeMatch = title.match(/\b([a-zA-Z]+-\d+[a-z]*)\b/);
+            // 普通番号：匹配 "字母-数字"，并剥离后续的版本标记后缀（如 -C、-U、-C-U 等单字母大写段）
+            // 例：DASS-787C-U → 先匹配到 DASS-787C，再通过 versionSuffixPattern 去掉 -C
+            // 普通番号：匹配 "字母-数字"，同时允许末尾跟小写字母 suffix（如 cd、a）或大写版本标记（如 C、U）
+            const titleCodeRaw = title.match(/\b([a-zA-Z]+-\d+[a-zA-Z]*)\b/);
 
             if (titleFc2Match) {
                 code = titleFc2Match[1];
             } else if (titleNumPrefixMatch) {
                 // 数字开头番号：走 tktube 缩略图 + iframe，不查 DMM
                 code = titleNumPrefixMatch[1];
-            } else if (titleCodeMatch) {
-                code = titleCodeMatch[1];
+            } else if (titleCodeRaw) {
+                // 剥离版本标记后缀，兼容两种形式：
+                //   有连字符：DASS-787-C-U → DASS-787
+                //   无连字符：DASS-787C、DASS-787CU → DASS-787
+                // 规则：数字后紧跟的纯大写字母段 或 "-大写字母" 重复段，均视为版本标记
+                const raw = titleCodeRaw[1];
+                const cleaned = raw
+                    .replace(/(-[A-Z]+)+$/, '') // 去除 -C、-U、-C-U 等有连字符形式
+                    .replace(/([0-9])([A-Z]+)$/, '$1'); // 去除 787C、787CU 等无连字符大写后缀
+                code = cleaned;
             } else {
                 // fallback：从 URL 末尾解析
                 const fc2Match = lastPart.match(/^(fc2-ppv-\d+)/i);
