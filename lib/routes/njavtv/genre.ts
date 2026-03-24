@@ -10,8 +10,6 @@ const picsDigiBase = 'https://pics.dmm.co.jp/digital/video';
 const picsMonoBase = 'https://pics.dmm.co.jp/mono/movie/adult';
 const awsAmateurBase = 'https://awsimgsrc.dmm.co.jp/pics_dig/digital/amateur';
 
-// labels 中数字前缀的系列为实体碟（mono），h_xxx / n_xxx 及未知系列默认走 digital
-const monoLabelPrefixes = new Set([1, 2, 13, 24, 41, 53, 55, 59, 118, 125, 433, 436, 5141, 5433, 5642, 5664, 5686, 5761]);
 const dmmVideos = 'https://cc3001.dmm.co.jp/litevideo/freepv';
 const dmmVrVideos = 'https://cc3001.dmm.co.jp/vrsample';
 const dmmMonoUrl = 'https://www.dmm.co.jp/mono/dvd/-/detail/=/cid=';
@@ -449,23 +447,11 @@ class AV {
         return amateurLabels.has(this.label);
     }
 
-    // labels 中数字前缀的系列是实体碟（mono），其余（h_xxx、n_xxx、未知）默认 digital
+    // 仅 stars-616~999 走 mono，其他所有番号一律走 digital
     get isMono() {
-        if (this._forceDigital || this.isVr || this.isAmateur) {
-            return false;
-        }
-        if (digitalOnlyLabels.has(this.label)) {
-            return false;
-        }
-        // stars 仅 616~999 号段走 mono，其余走 digital
         if (this.label === 'stars') {
             const n = Number(this.number);
             return n >= 616 && n <= 999;
-        }
-        for (const [key, list] of Object.entries(labels)) {
-            if (list.includes(this.label)) {
-                return monoLabelPrefixes.has(Number(key));
-            }
         }
         return false;
     }
