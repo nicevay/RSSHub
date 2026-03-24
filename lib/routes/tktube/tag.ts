@@ -490,8 +490,13 @@ class AV {
             return [`${dmmVrVideos}/${this.vid[0]}/${this.vid.slice(0, 3)}/${this.vid}/${this.vid}vrlite.mp4`, `${dmmVrVideos}/${this.id[0]}/${this.id.slice(0, 3)}/${this.id}/${this.id}vrlite.mp4`];
         }
         if (this.isAmateur) {
-            // amateur 系列一般无试看视频，返回空
-            return [];
+            // amateur 系列与普通番号共用同一套 litevideo 地址规律
+            const result: string[] = [];
+            for (const sfx of ['hhb', 'mhb', '_dmb_w', '_dm_s']) {
+                result.push(`${dmmVideos}/${this.vid[0]}/${this.vid.slice(0, 3)}/${this.vid}/${this.vid}${sfx}.mp4`);
+                result.push(`${dmmVideos}/${this.id[0]}/${this.id.slice(0, 3)}/${this.id}/${this.id}${sfx}.mp4`);
+            }
+            return result;
         }
         const result: string[] = [];
         for (const sfx of ['hhb', 'mhb', '_dmb_w', '_dm_s']) {
