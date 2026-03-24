@@ -9,9 +9,10 @@ const dmmMonoPics = 'https://p.dmm.co.jp/mono/movie/adult';
 const dmmDigiPics = 'https://p.dmm.co.jp/digital/video';
 const picsDigiBase = 'https://pics.dmm.co.jp/digital/video';
 const picsMonoBase = 'https://pics.dmm.co.jp/mono/movie/adult';
+const awsAmateurBase = 'https://awsimgsrc.dmm.co.jp/pics_dig/digital/amateur';
 
 // labels 中数字前缀的系列为实体碟（mono），h_xxx / n_xxx 及未知系列默认走 digital
-const monoLabelPrefixes = new Set([1, 2, 13, 24, 41, 53, 55, 59, 118, 5433, 5642]);
+const monoLabelPrefixes = new Set([1, 2, 13, 24, 41, 53, 55, 59, 118, 125, 433, 436, 5141, 5433, 5642, 5664, 5686, 5761]);
 const dmmVideos = 'https://cc3001.dmm.co.jp/litevideo/freepv';
 const dmmVrVideos = 'https://cc3001.dmm.co.jp/vrsample';
 const dmmMonoUrl = 'https://www.dmm.co.jp/mono/dvd/-/detail/=/cid=';
@@ -29,12 +30,162 @@ const digitalNumericLabels: Record<string, string> = {
 // 这些 label 即使出现在 labels 的数字前缀组里，id 和 vid 也直接用 label+number，不加前缀
 const digitalOnlyLabels = new Set(['dass']);
 
+// amateur 系列 label 集合（图片走 awsimgsrc.dmm.co.jp/pics_dig/digital/amateur/）
+const amateurLabels = new Set([
+    'ako',
+    'anan',
+    'bmyb',
+    'bngg',
+    'bshi',
+    'bskc',
+    'dcgg',
+    'ddh',
+    'ddhc',
+    'ddhp',
+    'deaa',
+    'deas',
+    'debz',
+    'deli',
+    'deth',
+    'detw',
+    'dht',
+    'docs',
+    'einac',
+    'ends',
+    'erk',
+    'erofc',
+    'esdx',
+    'fan',
+    'fct',
+    'fcz',
+    'ffee',
+    'ffnn',
+    'ffqq',
+    'gaga',
+    'gdrp',
+    'gdrt',
+    'gerk',
+    'gesy',
+    'ginac',
+    'grsp',
+    'gtwy',
+    'hdpgm',
+    'hdsn',
+    'hhl',
+    'hint',
+    'hlw',
+    'hmdnc',
+    'hmpr',
+    'hoi',
+    'hpara',
+    'hpt',
+    'htut',
+    'hut',
+    'instc',
+    'iog',
+    'jdg',
+    'jzt',
+    'kaku',
+    'kitaike',
+    'kjm',
+    'kjsk',
+    'kure',
+    'mach',
+    'mado',
+    'mako',
+    'mfc',
+    'mfcg',
+    'mfcl',
+    'mfcn',
+    'mfcs',
+    'mfcw',
+    'mgfx',
+    'mla',
+    'mmnm',
+    'momo',
+    'msodn',
+    'mtgg',
+    'myxx',
+    'ntgg',
+    'oksm',
+    'omad',
+    'ontr',
+    'orebm',
+    'orec',
+    'oreh',
+    'orena',
+    'orer',
+    'orev',
+    'pai',
+    'peej',
+    'pkpk',
+    'pkti',
+    'prgo',
+    'ptpj',
+    'pwife',
+    'refuck',
+    'sbkd',
+    'scute',
+    'sekao',
+    'shc',
+    'sika',
+    'sima',
+    'simd',
+    'simf',
+    'simh',
+    'simm',
+    'simo',
+    'simp',
+    'simt',
+    'sj',
+    'sjho',
+    'skho',
+    'smjh',
+    'smjj',
+    'smjk',
+    'smjs',
+    'smjx',
+    'smjz',
+    'smmc',
+    'smuk',
+    'smus',
+    'sna',
+    'snp',
+    'spcz',
+    'srgt',
+    'srsy',
+    'srt',
+    'sth',
+    'stime',
+    'sxfe',
+    'taxd',
+    'tcnb',
+    'tow',
+    'tpc',
+    'tttl',
+    'uinac',
+    'urutora',
+    'wnso',
+    'womc',
+    'work',
+    'xxgg',
+    'yarim',
+    'yss',
+    'zarj',
+]);
+
 const labels = {
     1: [
+        'aege',
         'aiav',
+        'akdl',
+        'bkynb',
         'boko',
+        'bqbb',
         'dandy',
+        'dandya',
         'dldss',
+        'drpt',
         'emois',
         'fadss',
         'fcdss',
@@ -42,23 +193,38 @@ const labels = {
         'fsdss',
         'fsvss',
         'ftav',
+        'ftk',
+        'ftkd',
+        'hame',
+        'hawa',
+        'hbad',
         'iene',
+        'ienf',
         'kire',
+        'king',
         'kkbt',
         'kmhr',
         'kmhrs',
         'kuse',
         'mgold',
+        'mgnl',
+        'miha',
         'mist',
+        'mistsc',
         'mogi',
         'moon',
         'msfh',
+        'mtafb',
         'mtall',
+        'murikuri',
         'namh',
         'nhdt',
         'nhdta',
         'nhdtb',
+        'nhdtc',
+        'nhvr',
         'noskn',
+        'nph',
         'open',
         'piyo',
         'rct',
@@ -80,15 +246,20 @@ const labels = {
         'senn',
         'setm',
         'seth',
+        'seven',
         'sgki',
         'shyn',
         'silk',
+        'silkbt',
         'silks',
         'silku',
+        'sods',
         'sply',
         'star',
         'stars',
         'start',
+        'stcv',
+        'stcvs',
         'stzy',
         'sun',
         'suwk',
@@ -100,47 +271,121 @@ const labels = {
         'svsha',
         'svvrt',
         'sw',
+        'urkn',
+        'vrnc',
+        'wawa',
         'wo',
+        'yaria',
     ],
-    2: ['cen', 'ckw', 'cwm', 'dfdm', 'dfe', 'dje', 'ecb', 'ekai', 'emsk', 'hkw', 'wdi', 'wsp', 'wss', 'wzen'],
-    13: ['dsvr'],
+    2: ['cen', 'ckw', 'cwm', 'dfdm', 'dfe', 'dje', 'ecb', 'ekai', 'ekw', 'emsk', 'hkw', 'wdi', 'wsp', 'wss', 'wzen'],
+    13: ['dsvr', 'gvg'],
     18: ['sprd'],
-    24: ['bld', 'cvd', 'dkd', 'frd', 'isrd', 'nad', 'nhd', 'ped', 'tyd', 'ufd', 'vdd'],
+    24: ['bld', 'cxd', 'cvd', 'dkd', 'frd', 'isrd', 'nad', 'nhd', 'ped', 'qbd', 'tyd', 'ufd', 'vdd'],
+    36: ['dhld', 'doks', 'dmow', 'dotm', 'drop'],
     41: ['aibv', 'aidv', 'hodv', 'howy'],
+    42: ['vrpn'],
+    48: ['rdvhj'],
     53: ['dv'],
     55: ['csct', 'hitma', 'hsrm', 'id', 'qqq', 'qvrt', 't', 'tsms'],
-    59: ['hez'],
+    59: ['dht', 'ghz', 'hez'],
+    71: ['gas', 'gass'],
     118: ['aas', 'abf', 'abp', 'abw', 'aka', 'bgn', 'chn', 'dic', 'dmr', 'dkn', 'dlv', 'fbu', 'fig', 'fit', 'fiv', 'gni', 'gdl', 'ggg', 'jbs', 'onez', 'ppt', 'ppx', 'pxh', 'sga', 'shf', 'sng', 'thu', 'yrk'],
+    125: ['umd'],
+    433: ['neo', 'rop'],
+    436: ['mille'],
+    5141: ['mbrbm'],
     5433: ['btha'],
     5642: ['neob'],
+    5664: ['mbrbi'],
+    5686: ['edyar'],
+    5761: ['ogy'],
     h_019: ['aczd'],
+    h_021: ['ptes', 'pts'],
     h_066: ['fax'],
-    h_068: ['mxbd', 'mxgs', 'mxsps'],
-    h_086: ['hone', 'hthd', 'iora', 'iro', 'jrzd', 'jrze', 'jura', 'nuka'],
-    h_113: ['cb', 'ps', 'se', 'sy', 'zm'],
+    h_068: ['httm', 'mxbd', 'mxdlp', 'mxgs', 'mxsps'],
+    h_086: ['cvdx', 'goul', 'hone', 'hthd', 'iora', 'iro', 'jrzd', 'jrze', 'jura', 'nuka', 'tenh'],
+    h_113: ['cb', 'honb', 'hr', 'kpp', 'pais', 'ps', 'puw', 'se', 'sy', 'tnik', 'ubug', 'zm'],
     h_139: ['dhld', 'doks', 'dotm'],
     h_172: ['gghx', 'hmgl', 'hmnf'],
-    h_237: ['ambi', 'clot', 'find', 'hdka', 'nacr', 'nacx', 'zmar'],
+    h_173: ['ghkr', 'gret'],
+    h_205: ['ssnd'],
+    h_237: ['ambi', 'clot', 'find', 'hdka', 'mara', 'nacr', 'nacx', 'nact', 'zmar'],
+    h_283: ['pmft', 'pym'],
     h_346: ['rebd', 'rebdb'],
+    h_455: ['abnomal', 'baburu', 'maguro', 'ooniku'],
     h_458: ['hsm'],
-    h_491: ['fneo', 'fone', 'tenn', 'tkou'],
+    h_460: ['mbm', 'mbma', 'mbmu'],
+    h_491: ['chuc', 'fnew', 'fneo', 'fone', 'knmb', 'nmch', 'tenn', 'tkou'],
+    h_496: ['bbwm', 'neko'],
+    h_618: ['mkz'],
     h_720: ['zex'],
     h_796: ['san'],
+    h_848: ['emf', 'jewe', 'mse', 'rhn', 'wcx'],
+    h_897: ['flb'],
     h_910: ['vrtm'],
+    h_1089: ['fw'],
     h_1100: ['hzgd'],
     h_1127: ['gopj'],
-    h_1133: ['gone', 'jstk', 'nine', 'tdan'],
+    h_1133: ['gone', 'honb', 'jstk', 'nine', 'pais', 'tdan', 'tnik', 'ubug'],
+    h_1144: ['sgo'],
+    h_1157: ['opg'],
+    h_1165: ['goju'],
     h_1240: ['milk'],
+    h_1292: ['gsy', 'ndo', 'ska'],
+    h_1293: ['bdh', 'pqj'],
+    h_1294: ['cbg', 'lwq'],
+    h_1300: ['ftds', 'ginav', 'mtes'],
     h_1324: ['skmj'],
-    h_1350: ['kamef', 'kamx', 'tmgv', 'vov', 'vovx'],
-    h_1472: ['xox'],
+    h_1350: ['einav', 'kamef', 'kamx', 'tmgv', 'vov', 'vovx'],
+    h_1380: ['kmds'],
+    h_1441: ['bar', 'domi'],
+    h_1450: ['psst'],
+    h_1454: ['bdsr', 'bdst', 'hust', 'husr', 'mcsr'],
+    h_1462: ['com', 'fcr', 'pyu'],
+    h_1472: ['erofv', 'ggpvr', 'hmdnv', 'instna', 'instv', 'uinav', 'xox'],
+    h_1489: ['j99'],
+    h_1492: ['siron'],
     h_1495: ['bank'],
+    h_1510: ['zzza'],
+    h_1515: ['zooo', 'zoooz'],
+    h_1534: ['grmr', 'grmo'],
+    h_1535: ['grkg'],
     h_1539: ['slr'],
+    h_1540: ['sdgn'],
+    h_1580: ['och'],
+    h_1596: ['dg', 'gns'],
+    h_1604: ['pjam', 'pjsp'],
+    h_1607: ['htubo'],
     h_1615: ['beaf'],
-    h_1711: ['dal', 'docd', 'docp', 'hmrk', 'maan', 'mfcd', 'mfct', 'mgtd'],
+    h_1617: ['zzzm'],
+    h_1618: ['ikik'],
+    h_1628: ['sat'],
+    h_1636: ['myt230'],
+    h_1650: ['embm'],
+    h_1658: ['hnhu'],
+    h_1664: ['doki', 'ghat', 'hnbr', 'kir', 'nxg', 'ofku', 'olm'],
+    h_1711: ['astr', 'dal', 'devr', 'docd', 'docp', 'gesz', 'har', 'hmrk', 'maan', 'mfcd', 'mfct', 'mgtd', 'mgpd'],
     h_1712: ['asi', 'dtt', 'fft', 'kbi', 'kbl', 'kbr', 'tuk'],
+    h_1713: ['ems'],
+    h_1724: ['a057b', 'a058g', 'a081g', 'a123g', 'm999g'],
+    h_1728: ['htf'],
+    h_1729: ['goji'],
+    h_1736: ['ntk', 'zrc'],
+    h_1739: ['dpk230'],
+    h_1745: ['hrsm'],
+    h_1755: ['brv'],
     h_1757: ['olm'],
+    h_1758: ['ggdr'],
+    h_1763: ['hrav'],
+    h_1776: ['stakyb'],
+    h_1780: ['gkjsk', 'gpkti', 'gptpj', 'gsxfe', 'gtaxd'],
+    h_1783: ['tkfc'],
+    h_1786: ['bufe'],
+    h_1787: ['bdst', 'jksr', 'mcsr'],
+    h_1794: ['plov'],
     h_1800: ['yyds'],
+    h_1812: ['memo'],
+    h_1825: ['tssr'],
     n_707: ['aims', 'fuka', 'jfic', 'jtdk', 'lbdd', 'mbdd', 'ohp'],
     n_709: ['maraa', 'mbraa', 'mbrau', 'mbraz', 'mbrba', 'mbrbi', 'mbrbm', 'mbrbn', 'mmraa'],
     n_1428: ['ap', 'ld', 'ss'],
@@ -160,6 +405,14 @@ class AV {
             this.label = match.groups.label.toLowerCase();
             this.number = match.groups.number;
             this.suffix = match.groups.suffix || '';
+
+            // amateur 类：直接用 label+number，不加任何前缀
+            if (amateurLabels.has(this.label)) {
+                this.id = `${this.label}${this.number}${this.suffix}`;
+                this.vid = `${this.label}${this.number}${this.suffix}`;
+                this._forceDigital = true;
+                return;
+            }
 
             // 最优先：digitalOnlyLabels 中的 label 不加任何前缀，直接走 digital
             if (digitalOnlyLabels.has(this.label)) {
@@ -194,14 +447,23 @@ class AV {
         return this.label.endsWith('vr') || vrLabels.has(this.label);
     }
 
+    get isAmateur() {
+        return amateurLabels.has(this.label);
+    }
+
     // labels 中数字前缀的系列是实体碟（mono），其余（h_xxx、n_xxx、未知）默认 digital
     get isMono() {
-        if (this._forceDigital || this.isVr) {
+        if (this._forceDigital || this.isVr || this.isAmateur) {
             return false;
         }
         // digitalOnlyLabels 中的 label 强制走 digital，即使其在数字前缀组里
         if (digitalOnlyLabels.has(this.label)) {
             return false;
+        }
+        // stars 仅 616~999 号段走 mono，其余走 digital
+        if (this.label === 'stars') {
+            const n = Number(this.number);
+            return n >= 616 && n <= 999;
         }
         for (const [key, list] of Object.entries(labels)) {
             if (list.includes(this.label)) {
@@ -213,16 +475,26 @@ class AV {
     }
 
     get url() {
+        if (this.isAmateur) {
+            return `${dmmDigiUrl}${this.vid}/`;
+        }
         return this.isMono ? `${dmmMonoUrl}${this.id}/` : `${dmmDigiUrl}${this.vid}/`;
     }
 
     get cover() {
+        if (this.isAmateur) {
+            return `${awsAmateurBase}/${this.id}/${this.id}jp.jpg`;
+        }
         return this.isMono ? `${dmmMonoPics}/${this.id}/${this.id}pl.jpg` : `${dmmDigiPics}/${this.vid}/${this.vid}pl.jpg`;
     }
 
     get gallery(): string[] {
         if (!this.vid) {
             return [];
+        }
+        if (this.isAmateur) {
+            // amateur 封面：{label}{number}jp.jpg；预览图：{label}{number}jp-001.jpg 等
+            return [`${awsAmateurBase}/${this.id}/${this.id}jp.jpg`, ...Array.from({ length: 8 }, (_, i) => `${awsAmateurBase}/${this.id}/${this.id}jp-${String(i + 1).padStart(3, '0')}.jpg`)];
         }
         const base = this.isMono ? picsMonoBase : picsDigiBase;
         const key = this.isMono ? this.id : this.vid;
@@ -232,6 +504,10 @@ class AV {
     get videos() {
         if (this.isVr) {
             return [`${dmmVrVideos}/${this.vid[0]}/${this.vid.slice(0, 3)}/${this.vid}/${this.vid}vrlite.mp4`, `${dmmVrVideos}/${this.id[0]}/${this.id.slice(0, 3)}/${this.id}/${this.id}vrlite.mp4`];
+        }
+        if (this.isAmateur) {
+            // amateur 系列一般无试看视频，返回空
+            return [];
         }
         const result: string[] = [];
         for (const sfx of ['hhb', 'mhb', '_dmb_w', '_dm_s']) {
@@ -437,7 +713,7 @@ async function handler(ctx) {
 
             // 将番号统一转为小写并确保含连字符，用于构造 njavtv 全文地址
             // 例：MRSS-181 → mrss-181，FC2-PPV-123456 → fc2-ppv-123456
-            const codeForUrl = code.toLowerCase().replaceAll(/_/g, '-');
+            const codeForUrl = code.toLowerCase().replaceAll('_', '-');
             const njavtvLink = `https://njavtv.com/${codeForUrl}`;
 
             return {
